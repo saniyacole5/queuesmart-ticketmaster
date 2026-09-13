@@ -1,0 +1,92 @@
+.login-page {
+  align-items: center;
+  background: linear-gradient(135deg, #13213c, #0f8f8a);
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+.login-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px #00000040;
+  max-width: 430px;
+  padding: 36px;
+  width: 100%;
+}
+.login-brand {
+  align-items: center;
+  background: #f5c84c;
+  border-radius: 10px;
+  color: #13213c;
+  display: flex;
+  font-size: 22px;
+  font-weight: 800;
+  height: 42px;
+  justify-content: center;
+  margin-bottom: 18px;
+  width: 42px;
+}
+.login-eyebrow {
+  color: #0f8f8a;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.login-card h1 {
+  color: #13213c;
+  margin-bottom: 8px;
+}
+.login-intro {
+  color: #687386;
+  margin-bottom: 26px;
+}
+.form-field {
+  margin-bottom: 18px;
+}
+.form-field label {
+  color: #354158;
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 7px;
+}
+.form-field input {
+  border: 1px solid #cbd3df;
+  border-radius: 8px;
+  padding: 12px;
+  width: 100%;
+}
+.form-field input:focus {
+  border-color: #0f8f8a;
+  outline: 3px solid #0f8f8a26;
+}
+.form-field input[aria-invalid="true"] {
+  border-color: #b42318;
+}
+.field-error {
+  color: #b42318;
+  font-size: 13px;
+  margin: 6px 0 0;
+}
+.login-button {
+  background: #0f8f8a;
+  color: #fff;
+  margin-top: 4px;
+  width: 100%;
+}
+.login-button:hover {
+  background: #08736f;
+}
+.register-link {
+  color: #687386;
+  font-size: 14px;
+  margin: 20px 0 0;
+  text-align: center;
+}
+.register-link a {
+  color: #08736f;
+  font-weight: 700;
+}
