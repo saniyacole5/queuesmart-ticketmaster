@@ -1,15 +1,50 @@
-import ScreenTemplate from "../components/ScreenTemplate";
+import PageHeader from "../components/PageHeader";
+import StatusBadge from "../components/StatusBadge";
+import { currentQueue } from "../data/mockData";
 
 export default function QueueStatusPage() {
   return (
-    <ScreenTemplate
-      title="Queue Status"
-      description="Show live or simulated information about the user's queue."
-      requirements={[
-        "Show the current queue position",
-        "Show the estimated wait time",
-        "Show waiting, almost ready, and served states",
-      ]}
-    />
+    <>
+      <PageHeader
+        title="Queue Status"
+        description="Track your current position and estimated wait time."
+        />
+
+        <section className="status-card">
+          <p className="eyebrow">{currentQueue.serviceName}</p>
+          
+          <h2>Your Position</h2>
+          
+          <strong className="position">
+            #{currentQueue.position}
+          </strong>
+
+          <p>
+            Estimated Wait Time:{" "}
+            <strong>{currentQueue.estimatedWait} minutes</strong>
+          </p>
+
+          <StatusBadge>{currentQueue.status}</StatusBadge>
+          
+          <div className="progress">
+            <span></span>
+          </div>
+
+          <div className="step-row">
+            <span>Joined</span>
+            <span>Waiting</span>
+            <span>Almost Ready</span>
+            <span>Served</span>
+          </div>
+
+          <p>
+            There are {currentQueue.position - 1} customers ahead of you.
+          </p>
+
+          <button className="danger" type="button">
+            Leave Queue
+          </button>
+        </section>
+    </>
   );
 }
