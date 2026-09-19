@@ -60,19 +60,18 @@ queuesmart-ticketmaster/
 
 ## Required screens and routes
 
-| Screen             | Route             | Page file                   |
-| ------------------ | ----------------- | --------------------------- |
-| Login              | `/login`          | `LoginPage.jsx`             |
-| Registration       | `/register`       | `RegisterPage.jsx`          |
-| User dashboard     | `/dashboard`      | `UserDashboardPage.jsx`     |
-| Join queue         | `/join`           | `JoinQueuePage.jsx`         |
-| Queue status       | `/status`         | `QueueStatusPage.jsx`       |
-| History            | `/history`        | `HistoryPage.jsx`           |
-| Admin dashboard    | `/admin`          | `AdminDashboardPage.jsx`    |
-| Service management | `/admin/services` | `ServiceManagementPage.jsx` |
-| Queue management   | `/admin/queue`    | `QueueManagementPage.jsx`   |
-
-The login page is implemented as a reference. The remaining pages intentionally contain TODO templates.
+| Screen              | Route             | Page file                   |
+| ------------------- | ----------------- | --------------------------- |
+| Login               | `/login`          | `LoginPage.jsx`             |
+| Administrator login | `/admin/login`    | `AdminLoginPage.jsx`        |
+| Registration        | `/register`       | `RegisterPage.jsx`          |
+| User dashboard      | `/dashboard`      | `UserDashboardPage.jsx`     |
+| Join queue          | `/join`           | `JoinQueuePage.jsx`         |
+| Queue status        | `/status`         | `QueueStatusPage.jsx`       |
+| History             | `/history`        | `HistoryPage.jsx`           |
+| Admin dashboard     | `/admin`          | `AdminDashboardPage.jsx`    |
+| Service management  | `/admin/services` | `ServiceManagementPage.jsx` |
+| Queue management    | `/admin/queue`    | `QueueManagementPage.jsx`   |
 
 ## How to implement another screen
 

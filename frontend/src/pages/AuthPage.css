@@ -6,6 +6,11 @@
   min-height: 100vh;
   padding: 24px;
 }
+
+.admin-login-page {
+  background: linear-gradient(135deg, #10182a, #354158);
+}
+
 .login-card {
   background: #fff;
   border-radius: 16px;
@@ -14,6 +19,7 @@
   padding: 36px;
   width: 100%;
 }
+
 .login-brand {
   align-items: center;
   background: #f5c84c;
@@ -27,6 +33,12 @@
   margin-bottom: 18px;
   width: 42px;
 }
+
+.admin-login-brand {
+  background: #13213c;
+  color: #f5c84c;
+}
+
 .login-eyebrow {
   color: #0f8f8a;
   font-size: 12px;
@@ -35,17 +47,21 @@
   margin-bottom: 6px;
   text-transform: uppercase;
 }
+
 .login-card h1 {
   color: #13213c;
   margin-bottom: 8px;
 }
+
 .login-intro {
   color: #687386;
   margin-bottom: 26px;
 }
+
 .form-field {
   margin-bottom: 18px;
 }
+
 .form-field label {
   color: #354158;
   display: block;
@@ -53,40 +69,132 @@
   font-weight: 700;
   margin-bottom: 7px;
 }
+
 .form-field input {
   border: 1px solid #cbd3df;
   border-radius: 8px;
   padding: 12px;
   width: 100%;
 }
+
 .form-field input:focus {
   border-color: #0f8f8a;
   outline: 3px solid #0f8f8a26;
 }
+
 .form-field input[aria-invalid="true"] {
   border-color: #b42318;
 }
+
 .field-error {
   color: #b42318;
   font-size: 13px;
   margin: 6px 0 0;
 }
+
+.form-error-banner {
+  background: #fff0ee;
+  border: 1px solid #f1aaa3;
+  border-radius: 8px;
+  color: #8f1d14;
+  font-size: 14px;
+  margin: 0 0 14px;
+  padding: 12px;
+}
+
+.success-banner {
+  background: #e7f7f3;
+  border: 1px solid #9bd7ca;
+  border-radius: 8px;
+  color: #086b60;
+  font-size: 14px;
+  margin-bottom: 20px;
+  padding: 12px;
+}
+
 .login-button {
   background: #0f8f8a;
   color: #fff;
   margin-top: 4px;
   width: 100%;
 }
+
 .login-button:hover {
   background: #08736f;
 }
+
+.admin-login-button {
+  background: #13213c;
+}
+
+.admin-login-button:hover {
+  background: #263653;
+}
+
+.login-button:focus-visible,
+.register-link a:focus-visible,
+.alternate-login-link a:focus-visible {
+  outline: 3px solid #f5c84c;
+  outline-offset: 3px;
+}
+
+.demo-accounts {
+  background: #f4f7fa;
+  border: 1px solid #d9e0e8;
+  border-radius: 10px;
+  margin-top: 22px;
+  padding: 16px;
+}
+
+.demo-accounts h2 {
+  color: #13213c;
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+
+.demo-account {
+  color: #4b586d;
+  display: grid;
+  font-size: 13px;
+  gap: 2px;
+}
+
+.demo-account + .demo-account {
+  border-top: 1px solid #d9e0e8;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.demo-account strong {
+  color: #08736f;
+}
+
 .register-link {
   color: #687386;
   font-size: 14px;
   margin: 20px 0 0;
   text-align: center;
 }
+
 .register-link a {
   color: #08736f;
   font-weight: 700;
+}
+
+.alternate-login-link {
+  color: #687386;
+  font-size: 14px;
+  margin: 12px 0 0;
+  text-align: center;
+}
+
+.alternate-login-link a {
+  color: #08736f;
+  font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 28px 22px;
+  }
 }
