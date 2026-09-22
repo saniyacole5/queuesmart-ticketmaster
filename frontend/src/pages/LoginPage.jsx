@@ -3,38 +3,63 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { mockUsers } from "../data/mockUsers";
 import "./AuthPage.css";
 
-const initialForm = { email: "", password: "" };
+const initialForm = {
+  email: "",
+  password: "",
+};
 
 export default function LoginPage({ onLogin }) {
   const navigate = useNavigate();
   const location = useLocation();
+
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
 
   function handleChange(event) {
     const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
-    setErrors((current) => ({ ...current, [name]: "", form: "" }));
+
+    setForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
+
+    setErrors((current) => ({
+      ...current,
+      [name]: "",
+      form: "",
+    }));
   }
 
   function validateForm() {
     const nextErrors = {};
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (!form.email.trim()) nextErrors.email = "Email is required.";
-    else if (!emailPattern.test(form.email))
+    if (!form.email.trim()) {
+      nextErrors.email = "Email is required.";
+    } else if (!emailPattern.test(form.email)) {
       nextErrors.email = "Enter a valid email address.";
+    } else if (form.email.length > 254) {
+      nextErrors.email = "Email must be 254 characters or fewer.";
+    }
 
-    if (!form.password) nextErrors.password = "Password is required.";
-    else if (form.password.length < 8)
-      nextErrors.password = "Password must contain at least 8 characters.";
+    if (!form.password) {
+      nextErrors.password = "Password is required.";
+    } else if (form.password.length < 8) {
+      nextErrors.password =
+        "Password must contain at least 8 characters.";
+    } else if (form.password.length > 128) {
+      nextErrors.password =
+        "Password must be 128 characters or fewer.";
+    }
 
     return nextErrors;
   }
 
   function handleSubmit(event) {
     event.preventDefault();
+
     const nextErrors = validateForm();
+
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
@@ -43,14 +68,17 @@ export default function LoginPage({ onLogin }) {
     const account = mockUsers.find(
       (user) =>
         user.role === "user" &&
-        user.email.toLowerCase() === form.email.trim().toLowerCase() &&
-        user.password === form.password,
+        user.email.toLowerCase() ===
+          form.email.trim().toLowerCase() &&
+        user.password === form.password
     );
 
     if (!account) {
       setErrors({
-        form: "Incorrect email or password. Try one of the demo accounts below.",
+        form:
+          "Incorrect email or password. Try one of the demo accounts below.",
       });
+
       return;
     }
 
@@ -61,13 +89,23 @@ export default function LoginPage({ onLogin }) {
 
   return (
     <main className="login-page">
-      <section className="login-card" aria-labelledby="login-title">
+      <section
+        className="login-card"
+        aria-labelledby="login-title"
+      >
         <div className="login-brand" aria-hidden="true">
           Q
         </div>
-        <p className="login-eyebrow">QueueSmart TicketManager</p>
+
+        <p className="login-eyebrow">
+          QueueSmart TicketManager
+        </p>
+
         <h1 id="login-title">Welcome back</h1>
-        <p className="login-intro">Sign in to manage your place in line.</p>
+
+        <p className="login-intro">
+          Sign in to manage your place in line.
+        </p>
 
         {location.state?.registrationComplete && (
           <p className="success-banner" role="status">
@@ -78,6 +116,7 @@ export default function LoginPage({ onLogin }) {
         <form onSubmit={handleSubmit} noValidate>
           <div className="form-field">
             <label htmlFor="email">Email</label>
+
             <input
               id="email"
               name="email"
@@ -88,9 +127,12 @@ export default function LoginPage({ onLogin }) {
               onChange={handleChange}
               autoComplete="email"
               aria-invalid={Boolean(errors.email)}
-              aria-describedby={errors.email ? "email-error" : undefined}
+              aria-describedby={
+                errors.email ? "email-error" : undefined
+              }
               placeholder="name@example.com"
             />
+
             {errors.email && (
               <p className="field-error" id="email-error">
                 {errors.email}
@@ -100,6 +142,7 @@ export default function LoginPage({ onLogin }) {
 
           <div className="form-field">
             <label htmlFor="password">Password</label>
+
             <input
               id="password"
               name="password"
@@ -111,11 +154,19 @@ export default function LoginPage({ onLogin }) {
               onChange={handleChange}
               autoComplete="current-password"
               aria-invalid={Boolean(errors.password)}
-              aria-describedby={errors.password ? "password-error" : undefined}
+              aria-describedby={
+                errors.password
+                  ? "password-error"
+                  : undefined
+              }
               placeholder="At least 8 characters"
             />
+
             {errors.password && (
-              <p className="field-error" id="password-error">
+              <p
+                className="field-error"
+                id="password-error"
+              >
                 {errors.password}
               </p>
             )}
@@ -132,8 +183,14 @@ export default function LoginPage({ onLogin }) {
           </button>
         </form>
 
-        <aside className="demo-accounts" aria-labelledby="demo-accounts-title">
-          <h2 id="demo-accounts-title">Demo user account</h2>
+        <aside
+          className="demo-accounts"
+          aria-labelledby="demo-accounts-title"
+        >
+          <h2 id="demo-accounts-title">
+            Demo user account
+          </h2>
+
           <div className="demo-account">
             <strong>User</strong>
             <span>user@queuesmart.com</span>
@@ -142,10 +199,15 @@ export default function LoginPage({ onLogin }) {
         </aside>
 
         <p className="register-link">
-          Need an account? <Link to="/register">Register</Link>
+          Need an account?{" "}
+          <Link to="/register">Register</Link>
         </p>
+
         <p className="alternate-login-link">
-          QueueSmart staff? <Link to="/admin/login">Administrator login</Link>
+          QueueSmart staff?{" "}
+          <Link to="/admin/login">
+            Administrator login
+          </Link>
         </p>
       </section>
     </main>

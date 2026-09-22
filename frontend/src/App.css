@@ -441,3 +441,84 @@ th {
     gap: 15px;
   }
 }
+.notification-center {
+  position: relative;
+  margin-left: auto;
+}
+
+.notification-center summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 9px;
+}
+
+.notification-count {
+  background: #0f8f8a;
+  color: white;
+  border-radius: 12px;
+  padding: 2px 7px;
+  font-size: 12px;
+}
+
+.notification-list {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  top: 100%;
+  width: min(360px, 85vw);
+  max-height: 360px;
+  overflow: auto;
+  background: white;
+  color: #13213c;
+  padding: 15px;
+  border: 1px solid #cbd3df;
+  border-radius: 9px;
+  box-shadow: 0 8px 22px #13213c26;
+}
+
+.notification-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #cbd3df;
+}
+
+.notification-item.read {
+  opacity: 0.65;
+}
+
+.notification-item button {
+  margin-top: 6px;
+  color: #08736f;
+  background: transparent;
+}
+
+.notification-item p {
+  margin: 5px 0;
+}
+
+.mobile-notifications {
+  display: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+input[aria-invalid="true"],
+textarea[aria-invalid="true"],
+select[aria-invalid="true"] {
+  border-color: #b42318;
+}
+
+@media (max-width: 850px) {
+  .mobile-notifications {
+    display: block;
+  }
+}

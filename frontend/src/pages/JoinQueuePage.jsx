@@ -1,10 +1,13 @@
 import { useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { services } from "../data/mockData";
+import { useNotifications } from "../context/NotificationContext";
 
 export default function JoinQueuePage() {
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [joined, setJoined] = useState(false);
+  const [error, setError] = useState("");
+  const { notify } = useNotifications();
 
   const selectedService = services.find(
     (service) => service.id === Number(selectedServiceId)
@@ -12,17 +15,25 @@ export default function JoinQueuePage() {
 
   function handleServiceChange(event) {
     setSelectedServiceId(event.target.value);
-    setJoined(false); // Reset joined state when changing service
+    setJoined(false);
+    setError("");
   }
 
   function handleJoinQueue() {
     if (selectedService) {
       setJoined(true);
+      notify(
+        `You joined ${selectedService.name}. Estimated wait: ${selectedService.estimatedWait} minutes.`,
+        "success"
+      );
+    } else {
+      setError("Select a service before joining a queue.");
     }
   }
 
   function handleLeaveQueue() {
     setJoined(false);
+    notify(`You left ${selectedService.name}.`, "info");
   }
 
   return (
@@ -36,12 +47,13 @@ export default function JoinQueuePage() {
         <label className="compact-label" htmlFor="service">
           Select a service
           <select
-          id="service"
-          value={selectedServiceId}
-          onChange={handleServiceChange}
+            id="service"
+            value={selectedServiceId}
+            onChange={handleServiceChange}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? "service-error" : undefined}
           >
             <option value="">Choose a service</option>
-            
             {services.map((service) => (
               <option key={service.id} value={service.id}>
                 {service.name}
@@ -50,22 +62,29 @@ export default function JoinQueuePage() {
           </select>
         </label>
 
+        {error && (
+          <p className="field-error" id="service-error">
+            {error}
+          </p>
+        )}
+
         {selectedService && (
           <div className="service-card">
             <h2>{selectedService.name}</h2>
             <p>{selectedService.description}</p>
 
-            <d1>
+            <dl>
               <div>
                 <dt>Estimated Wait</dt>
                 <dd>{selectedService.estimatedWait} minutes</dd>
               </div>
-            </d1>
+            </dl>
+
             {!joined ? (
               <button
-              className="primary"
-              type="button"
-              onClick={handleJoinQueue}
+                className="primary"
+                type="button"
+                onClick={handleJoinQueue}
               >
                 Join Queue
               </button>
@@ -74,7 +93,7 @@ export default function JoinQueuePage() {
                 <p className="success-message">
                   You have joined the queue for {selectedService.name}.
                 </p>
-                
+
                 <button
                   className="danger"
                   type="button"

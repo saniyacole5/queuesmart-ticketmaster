@@ -12,6 +12,7 @@ import HistoryPage from "./pages/HistoryPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import ServiceManagementPage from "./pages/ServiceManagementPage";
 import QueueManagementPage from "./pages/QueueManagementPage";
+import { NotificationProvider } from "./context/NotificationContext";
 import "./App.css";
 
 export default function App() {
@@ -44,32 +45,51 @@ export default function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
-      <Route
-        path="/admin/login"
-        element={<AdminLoginPage onLogin={handleLogin} />}
-      />
-      <Route path="/register" element={<RegisterPage />} />
+    <NotificationProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
 
-      <Route element={<ProtectedRoute account={account} allowedRole="user" />}>
-        <Route element={<AppShell account={account} onLogout={handleLogout} />}>
-          <Route path="/dashboard" element={<UserDashboardPage />} />
-          <Route path="/join" element={<JoinQueuePage />} />
-          <Route path="/status" element={<QueueStatusPage />} />
-          <Route path="/history" element={<HistoryPage />} />
+        <Route
+          path="/admin/login"
+          element={<AdminLoginPage onLogin={handleLogin} />}
+        />
+
+        <Route path="/register" element={<RegisterPage />} />
+
+        <Route
+          element={<ProtectedRoute account={account} allowedRole="user" />}
+        >
+          <Route
+            element={
+              <AppShell account={account} onLogout={handleLogout} />
+            }
+          >
+            <Route path="/dashboard" element={<UserDashboardPage />} />
+            <Route path="/join" element={<JoinQueuePage />} />
+            <Route path="/status" element={<QueueStatusPage />} />
+            <Route path="/history" element={<HistoryPage />} />
+          </Route>
         </Route>
-      </Route>
 
-      <Route element={<ProtectedRoute account={account} allowedRole="admin" />}>
-        <Route element={<AppShell account={account} onLogout={handleLogout} />}>
-          <Route path="/admin" element={<AdminDashboardPage />} />
-          <Route path="/admin/services" element={<ServiceManagementPage />} />
-          <Route path="/admin/queue" element={<QueueManagementPage />} />
+        <Route
+          element={<ProtectedRoute account={account} allowedRole="admin" />}
+        >
+          <Route
+            element={
+              <AppShell account={account} onLogout={handleLogout} />
+            }
+          >
+            <Route path="/admin" element={<AdminDashboardPage />} />
+            <Route
+              path="/admin/services"
+              element={<ServiceManagementPage />}
+            />
+            <Route path="/admin/queue" element={<QueueManagementPage />} />
+          </Route>
         </Route>
-      </Route>
 
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </NotificationProvider>
   );
 }
