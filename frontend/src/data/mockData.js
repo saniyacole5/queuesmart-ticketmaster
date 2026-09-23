@@ -24,7 +24,23 @@ export const services = [
 export const queueEntries = [];
 
 // TODO: Add temporary notification objects.
-export const notifications = [];
+export const notifications = [
+    {
+        id: 1,
+        message: "You moved up to position #7 in the Concert Ticket Queue.",
+        time: "2 minutes ago",
+    },
+    {
+        id: 2,
+        message: "Your estimated wait time is now 12 minutes.",
+        time: "5 minutes ago",
+    },
+    {
+        id: 3,
+        message: "The Concert Ticket Queue is currently active.",
+        time: "10 minutes ago",
+    },
+];
 
 // TODO: Add temporary queue-history objects.
 export const queueHistory = [
