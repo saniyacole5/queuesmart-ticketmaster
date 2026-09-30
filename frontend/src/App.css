@@ -157,7 +157,9 @@ button,
   justify-content: center;
   width: 36px;
 }
-main {
+/* Scoped to the app shell so the full-bleed auth pages, which are also
+   <main> elements, keep their own full-width background. */
+.main-column main {
   margin: auto;
   max-width: 1200px;
   padding: 38px 4% 60px;
@@ -193,6 +195,13 @@ main {
   display: grid;
   gap: 5px;
 }
+/* Stacked panels need breathing room between them. */
+.panel + .panel {
+  margin-top: 20px;
+}
+.panel > h2 {
+  margin: 0 0 4px;
+}
 .stats small {
   color: var(--muted);
   font-size: 11px;
@@ -219,6 +228,10 @@ main {
   align-items: center;
   display: flex;
   justify-content: space-between;
+}
+.panel-heading {
+  gap: 16px;
+  margin-bottom: 14px;
 }
 .list-row {
   border-top: 1px solid var(--line);
@@ -304,6 +317,12 @@ main {
   color: var(--teal);
   display: block;
   font-size: 76px;
+}
+/* Compact position marker for rows in the queue management table. */
+.queue-position {
+  color: var(--teal);
+  font-size: 15px;
+  font-weight: 800;
 }
 .progress {
   background: #e4e9ef;
@@ -405,6 +424,22 @@ th {
   color: var(--danger) !important;
   padding: 10px;
 }
+.field-error {
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 600;
+  margin: -6px 0 12px;
+}
+.field-hint {
+  color: #5b6b80;
+  font-size: 12px;
+  margin: -6px 0 12px;
+}
+input[aria-invalid="true"],
+textarea[aria-invalid="true"],
+select[aria-invalid="true"] {
+  border-color: var(--danger);
+}
 .text-button {
   background: transparent;
   color: #08736f;
@@ -479,6 +514,32 @@ th {
 .notification-item {
   padding: 12px 0;
   border-bottom: 1px solid #cbd3df;
+}
+
+/* Service list on the Service Management screen. Separate from
+   .notification-item so the notification dropdown keeps its tighter spacing. */
+.service-row {
+  border-top: 1px solid var(--line);
+  padding: 18px 0;
+}
+.service-row:first-of-type {
+  border-top: 0;
+  padding-top: 8px;
+}
+.service-row strong {
+  display: block;
+  margin-bottom: 6px;
+}
+.service-row p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 3px 0;
+}
+.service-row button {
+  background: transparent;
+  color: #08736f;
+  margin-top: 12px;
+  padding: 0;
 }
 
 .notification-item.read {

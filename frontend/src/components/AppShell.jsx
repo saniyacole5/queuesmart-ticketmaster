@@ -18,7 +18,9 @@ function RoleNavigation({ links }) {
   return (
     <nav>
       {links.map(([to, label]) => (
-        <NavLink key={to} to={to}>
+        // `end` keeps /admin from matching /admin/services and /admin/queue,
+        // so only the current page is highlighted.
+        <NavLink key={to} to={to} end>
           {label}
         </NavLink>
       ))}
