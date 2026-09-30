@@ -157,7 +157,9 @@ button,
   justify-content: center;
   width: 36px;
 }
-main {
+/* Scoped to the app shell so the full-bleed auth pages, which are also
+   <main> elements, keep their own full-width background. */
+.main-column main {
   margin: auto;
   max-width: 1200px;
   padding: 38px 4% 60px;
