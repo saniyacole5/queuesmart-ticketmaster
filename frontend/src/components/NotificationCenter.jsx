@@ -24,7 +24,7 @@ export default function NotificationCenter() {
                 key={item.id}
               >
                 <p>{item.message}</p>
-                <small>{item.time}</small>
+                <small>{item.createdAt}</small>
 
                 {!item.read && (
                   <button

@@ -1,14 +1,13 @@
 import { Link } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
-import {
-  currentQueue,
-  services,
-  notifications,
-} from "../data/mockData";
+import { currentQueue, services } from "../data/mockData";
+import { useNotifications } from "../context/NotificationContext";
 
 export default function UserDashboardPage() {
-  return (
+    const { notifications } = useNotifications();
+  
+    return (
     <>
       <PageHeader
         title="User Dashboard"
@@ -80,7 +79,7 @@ export default function UserDashboardPage() {
                 <span>●</span>
                 <div>
                   <p>{notification.message}</p>
-                  <small>{notification.time}</small>
+                  <small>{notification.createdAt}</small>
                 </div>
               </div>
             ))
