@@ -1,13 +1,20 @@
 import { Link } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
-import { currentQueue, services } from "../data/mockData";
+import { useQueues } from "../context/QueueContext";
 import { useNotifications } from "../context/NotificationContext";
 
 export default function UserDashboardPage() {
-    const { notifications } = useNotifications();
-  
-    return (
+  const { notifications } = useNotifications();
+  const { currentQueue: active, services } = useQueues();
+  const currentQueue = active || {
+    position: "-",
+    serviceName: "No active queue",
+    estimatedWait: 0,
+    status: "Not Queued",
+  };
+
+  return (
     <>
       <PageHeader
         title="User Dashboard"
@@ -108,9 +115,7 @@ export default function UserDashboardPage() {
               <p>{service.description}</p>
             </div>
 
-            <span className="badge open">
-              {service.estimatedWait} min wait
-            </span>
+            <span className="badge open">{service.estimatedWait} min wait</span>
           </div>
         ))}
       </section>

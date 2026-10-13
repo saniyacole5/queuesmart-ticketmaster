@@ -65,7 +65,7 @@ export default function ServiceManagementPage() {
     setForm({
       name: item.name,
       description: item.description,
-      duration: String(item.estimatedWait),
+      duration: String(item.expectedDuration),
       priority: item.priority,
     });
     setErrors({});
@@ -84,7 +84,7 @@ export default function ServiceManagementPage() {
     }
   }
 
-  function save(event) {
+  async function save(event) {
     event.preventDefault();
 
     const next = validateService(form);
@@ -96,21 +96,28 @@ export default function ServiceManagementPage() {
     const existing = items.find((item) => item.id === editingId);
 
     const saved = {
-      id: editingId ?? Date.now(),
+      ...(editingId ? { id: editingId } : {}),
       name: form.name.trim(),
       description: form.description.trim(),
-      estimatedWait: Number(form.duration),
+      expectedDuration: Number(form.duration),
       priority: form.priority,
       isOpen: existing?.isOpen ?? true,
     };
 
-    saveService(saved);
+    try {
+      await saveService(saved);
+    } catch (error) {
+      setErrors({
+        ...error.fields,
+        duration: error.fields.expectedDuration,
+        form: error.message,
+      });
+      return;
+    }
 
     notify(
-      `Service "${saved.name}" ${
-        editingId === null ? "created" : "updated"
-      } in this demo.`,
-      "success"
+      `Service "${saved.name}" ${editingId === null ? "created" : "updated"}.`,
+      "success",
     );
 
     setEditingId(null);
@@ -122,13 +129,18 @@ export default function ServiceManagementPage() {
     <>
       <PageHeader
         title="Service Management"
-        description="Create or edit services for this front-end demo."
+        description="Create or edit backend services."
       />
 
       <section className="panel form-panel">
         <h2>{editingId === null ? "Create service" : "Edit service"}</h2>
 
         <form onSubmit={save} noValidate>
+          {errors.form && (
+            <p role="alert" className="field-error">
+              {errors.form}
+            </p>
+          )}
           <label htmlFor="service-name">
             Service name
             <input
@@ -139,9 +151,7 @@ export default function ServiceManagementPage() {
               required
               onChange={(event) => update("name", event.target.value)}
               aria-invalid={Boolean(errors.name)}
-              aria-describedby={
-                errors.name ? "name-error" : "name-count"
-              }
+              aria-describedby={errors.name ? "name-error" : "name-count"}
             />
           </label>
           <p id="name-count" className="field-hint">
@@ -160,14 +170,10 @@ export default function ServiceManagementPage() {
               value={form.description}
               maxLength={limits.descriptionMax}
               required
-              onChange={(event) =>
-                update("description", event.target.value)
-              }
+              onChange={(event) => update("description", event.target.value)}
               aria-invalid={Boolean(errors.description)}
               aria-describedby={
-                errors.description
-                  ? "description-error"
-                  : "description-count"
+                errors.description ? "description-error" : "description-count"
               }
             />
           </label>
@@ -215,9 +221,7 @@ export default function ServiceManagementPage() {
               required
               onChange={(event) => update("priority", event.target.value)}
               aria-invalid={Boolean(errors.priority)}
-              aria-describedby={
-                errors.priority ? "priority-error" : undefined
-              }
+              aria-describedby={errors.priority ? "priority-error" : undefined}
             >
               <option value="low">Low</option>
               <option value="medium">Medium</option>
@@ -231,9 +235,7 @@ export default function ServiceManagementPage() {
           )}
 
           <button type="submit" className="primary">
-            {editingId === null
-              ? "Create service"
-              : "Save changes"}
+            {editingId === null ? "Create service" : "Save changes"}
           </button>
 
           {editingId !== null && (
@@ -259,7 +261,8 @@ export default function ServiceManagementPage() {
             <strong>{item.name}</strong>
             <p>{item.description}</p>
             <p>
-              {item.estimatedWait} minutes · {item.priority} priority
+              {item.expectedDuration} minutes per user · {item.priority}{" "}
+              priority
             </p>
             <button type="button" onClick={() => edit(item)}>
               Edit {item.name}

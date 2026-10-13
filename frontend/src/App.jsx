@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/AppShell";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -15,39 +15,52 @@ import QueueManagementPage from "./pages/QueueManagementPage";
 import { NotificationProvider } from "./context/NotificationContext";
 import { QueueProvider } from "./context/QueueContext";
 import "./App.css";
+import { api, session } from "./api/client";
 
 export default function App() {
-  const [account, setAccount] = useState(() => {
-    const savedAccount = sessionStorage.getItem("queuesmart-account");
-
-    try {
-      return savedAccount ? JSON.parse(savedAccount) : null;
-    } catch {
-      sessionStorage.removeItem("queuesmart-account");
-      return null;
+  const [account, setAccount] = useState(null);
+  const [checking, setChecking] = useState(() => Boolean(session.get()));
+  useEffect(() => {
+    let active = true;
+    if (session.get()) {
+      api("/auth/me")
+        .then((user) => {
+          if (active) setAccount(user);
+        })
+        .catch(() => {
+          session.clear();
+        })
+        .finally(() => {
+          if (active) setChecking(false);
+        });
     }
-  });
-
-  function handleLogin(nextAccount) {
-    const sessionAccount = {
-      id: nextAccount.id,
-      name: nextAccount.name,
-      email: nextAccount.email,
-      role: nextAccount.role,
+    const expire = () => {
+      session.clear();
+      setAccount(null);
     };
-
-    sessionStorage.setItem("queuesmart-account", JSON.stringify(sessionAccount));
-    setAccount(sessionAccount);
+    window.addEventListener("queuesmart-session-expired", expire);
+    return () => {
+      active = false;
+      window.removeEventListener("queuesmart-session-expired", expire);
+    };
+  }, []);
+  function handleLogin(user) {
+    setAccount(user);
   }
-
-  function handleLogout() {
+  async function handleLogout() {
+    try {
+      await api("/auth/logout", { method: "POST", body: {} });
+    } catch {
+      /* Local sign-out still succeeds if the backend is unavailable. */
+    }
+    session.clear();
     sessionStorage.removeItem("queuesmart-account");
     setAccount(null);
   }
-
+  if (checking) return <p role="status">Checking your session...</p>;
   return (
-    <NotificationProvider>
-      <QueueProvider>
+    <NotificationProvider key={account?.id ?? "guest"} account={account}>
+      <QueueProvider account={account}>
         <Routes>
           <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
 
@@ -62,9 +75,7 @@ export default function App() {
             element={<ProtectedRoute account={account} allowedRole="user" />}
           >
             <Route
-              element={
-                <AppShell account={account} onLogout={handleLogout} />
-              }
+              element={<AppShell account={account} onLogout={handleLogout} />}
             >
               <Route path="/dashboard" element={<UserDashboardPage />} />
               <Route path="/join" element={<JoinQueuePage />} />
@@ -77,9 +88,7 @@ export default function App() {
             element={<ProtectedRoute account={account} allowedRole="admin" />}
           >
             <Route
-              element={
-                <AppShell account={account} onLogout={handleLogout} />
-              }
+              element={<AppShell account={account} onLogout={handleLogout} />}
             >
               <Route path="/admin" element={<AdminDashboardPage />} />
               <Route

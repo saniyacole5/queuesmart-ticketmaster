@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useNotifications } from "../context/NotificationContext";
 import "./AuthPage.css";
+import { api } from "../api/client";
 
 const initialForm = {
+  name: "",
   email: "",
   password: "",
   confirmPassword: "",
@@ -34,6 +36,8 @@ export default function RegisterPage() {
 
   function validateForm() {
     const nextErrors = {};
+    if (!form.name.trim() || form.name.length > 100)
+      nextErrors.name = "Name is required (max 100 characters).";
 
     if (!form.email.trim()) {
       nextErrors.email = "Email is required.";
@@ -47,10 +51,7 @@ export default function RegisterPage() {
 
     if (!form.password) {
       nextErrors.password = "Password is required.";
-    } else if (
-      form.password.length < 8 ||
-      form.password.length > 128
-    ) {
+    } else if (form.password.length < 8 || form.password.length > 128) {
       nextErrors.password =
         "Password must contain between 8 and 128 characters.";
     }
@@ -64,7 +65,7 @@ export default function RegisterPage() {
     return nextErrors;
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
     const nextErrors = validateForm();
@@ -74,36 +75,28 @@ export default function RegisterPage() {
       return;
     }
 
-    notify(
-      "Registration details accepted. This is a front-end demo; no account was created.",
-      "success"
-    );
-
-    // TODO (backend phase): send registration data to the Node.js API.
-    navigate("/login", {
-      state: {
-        registrationComplete: true,
-      },
-    });
+    try {
+      await api("/auth/register", {
+        method: "POST",
+        body: { name: form.name, email: form.email, password: form.password },
+      });
+      notify("Account created. Sign in to continue.", "success");
+      navigate("/login", { state: { registrationComplete: true } });
+    } catch (error) {
+      setErrors({ ...error.fields, form: error.message });
+    }
   }
 
   return (
     <main className="login-page">
-      <section
-        className="login-card"
-        aria-labelledby="register-title"
-      >
+      <section className="login-card" aria-labelledby="register-title">
         <div className="login-brand" aria-hidden="true">
           Q
         </div>
 
-        <p className="login-eyebrow">
-          QueueSmart TicketManager
-        </p>
+        <p className="login-eyebrow">QueueSmart TicketManager</p>
 
-        <h1 id="register-title">
-          Create your account
-        </h1>
+        <h1 id="register-title">Create your account</h1>
 
         <p className="login-intro">
           Register to join queues and receive status updates.
@@ -111,9 +104,24 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="form-field">
-            <label htmlFor="register-email">
-              Email
-            </label>
+            <label htmlFor="register-name">Name</label>
+            <input
+              id="register-name"
+              name="name"
+              required
+              maxLength={100}
+              value={form.name}
+              onChange={handleChange}
+            />
+            {errors.name && <p className="field-error">{errors.name}</p>}
+          </div>
+          {errors.form && (
+            <p role="alert" className="form-error-banner">
+              {errors.form}
+            </p>
+          )}
+          <div className="form-field">
+            <label htmlFor="register-email">Email</label>
 
             <input
               id="register-email"
@@ -126,27 +134,20 @@ export default function RegisterPage() {
               autoComplete="email"
               aria-invalid={Boolean(errors.email)}
               aria-describedby={
-                errors.email
-                  ? "register-email-error"
-                  : undefined
+                errors.email ? "register-email-error" : undefined
               }
               placeholder="name@example.com"
             />
 
             {errors.email && (
-              <p
-                className="field-error"
-                id="register-email-error"
-              >
+              <p className="field-error" id="register-email-error">
                 {errors.email}
               </p>
             )}
           </div>
 
           <div className="form-field">
-            <label htmlFor="register-password">
-              Password
-            </label>
+            <label htmlFor="register-password">Password</label>
 
             <input
               id="register-password"
@@ -160,27 +161,20 @@ export default function RegisterPage() {
               autoComplete="new-password"
               aria-invalid={Boolean(errors.password)}
               aria-describedby={
-                errors.password
-                  ? "register-password-error"
-                  : undefined
+                errors.password ? "register-password-error" : undefined
               }
               placeholder="At least 8 characters"
             />
 
             {errors.password && (
-              <p
-                className="field-error"
-                id="register-password-error"
-              >
+              <p className="field-error" id="register-password-error">
                 {errors.password}
               </p>
             )}
           </div>
 
           <div className="form-field">
-            <label htmlFor="confirm-password">
-              Confirm password
-            </label>
+            <label htmlFor="confirm-password">Confirm password</label>
 
             <input
               id="confirm-password"
@@ -192,38 +186,27 @@ export default function RegisterPage() {
               value={form.confirmPassword}
               onChange={handleChange}
               autoComplete="new-password"
-              aria-invalid={Boolean(
-                errors.confirmPassword
-              )}
+              aria-invalid={Boolean(errors.confirmPassword)}
               aria-describedby={
-                errors.confirmPassword
-                  ? "confirm-password-error"
-                  : undefined
+                errors.confirmPassword ? "confirm-password-error" : undefined
               }
               placeholder="Re-enter your password"
             />
 
             {errors.confirmPassword && (
-              <p
-                className="field-error"
-                id="confirm-password-error"
-              >
+              <p className="field-error" id="confirm-password-error">
                 {errors.confirmPassword}
               </p>
             )}
           </div>
 
-          <button
-            className="login-button"
-            type="submit"
-          >
+          <button className="login-button" type="submit">
             Create account
           </button>
         </form>
 
         <p className="register-link">
-          Already have an account?{" "}
-          <Link to="/login">Sign in</Link>
+          Already have an account? <Link to="/login">Sign in</Link>
         </p>
       </section>
     </main>

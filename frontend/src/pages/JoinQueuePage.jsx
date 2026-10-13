@@ -1,109 +1,81 @@
 import { useState } from "react";
 import PageHeader from "../components/PageHeader";
-import { services } from "../data/mockData";
-import { useNotifications } from "../context/NotificationContext";
-
+import { useQueues } from "../context/QueueContext";
 export default function JoinQueuePage() {
-  const [selectedServiceId, setSelectedServiceId] = useState("");
-  const [joined, setJoined] = useState(false);
-  const [error, setError] = useState("");
-  const { notify } = useNotifications();
-
-  const selectedService = services.find(
-    (service) => service.id === Number(selectedServiceId)
-  );
-
-  function handleServiceChange(event) {
-    setSelectedServiceId(event.target.value);
-    setJoined(false);
+  const { services, currentQueue, joinQueue, leaveQueue } = useQueues();
+  const [selectedId, setSelectedId] = useState(""),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  const service = services.find((s) => s.id === Number(selectedId));
+  async function act() {
     setError("");
-  }
-
-  function handleJoinQueue() {
-    if (selectedService) {
-      setJoined(true);
-      notify(
-        `You joined ${selectedService.name}. Estimated wait: ${selectedService.estimatedWait} minutes.`,
-        "success"
-      );
-    } else {
-      setError("Select a service before joining a queue.");
+    setBusy(true);
+    try {
+      if (currentQueue) await leaveQueue(currentQueue.id);
+      else if (service) await joinQueue(service.id);
+      else setError("Select a service before joining.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
     }
   }
-
-  function handleLeaveQueue() {
-    setJoined(false);
-    notify(`You left ${selectedService.name}.`, "info");
-  }
-
   return (
     <>
       <PageHeader
         title="Join Queue"
         description="Select an available event and join its ticket queue."
       />
-
       <section className="panel">
-        <label className="compact-label" htmlFor="service">
-          Select a service
-          <select
-            id="service"
-            value={selectedServiceId}
-            onChange={handleServiceChange}
-            aria-invalid={Boolean(error)}
-            aria-describedby={error ? "service-error" : undefined}
-          >
-            <option value="">Choose a service</option>
-            {services.map((service) => (
-              <option key={service.id} value={service.id}>
-                {service.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
+        <label htmlFor="service">Service</label>
+        <select
+          id="service"
+          value={selectedId}
+          disabled={!!currentQueue || busy}
+          onChange={(e) => setSelectedId(e.target.value)}
+        >
+          <option value="">Choose a service</option>
+          {services.map((s) => (
+            <option key={s.id} value={s.id} disabled={!s.isOpen}>
+              {s.name}
+              {s.isOpen ? "" : " (Closed)"}
+            </option>
+          ))}
+        </select>
         {error && (
-          <p className="field-error" id="service-error">
+          <p role="alert" className="field-error">
             {error}
           </p>
         )}
-
-        {selectedService && (
+        {currentQueue ? (
           <div className="service-card">
-            <h2>{selectedService.name}</h2>
-            <p>{selectedService.description}</p>
-
-            <dl>
-              <div>
-                <dt>Estimated Wait</dt>
-                <dd>{selectedService.estimatedWait} minutes</dd>
-              </div>
-            </dl>
-
-            {!joined ? (
+            <h2>{currentQueue.serviceName}</h2>
+            <p>
+              Position #{currentQueue.position} · {currentQueue.estimatedWait}{" "}
+              minutes · {currentQueue.status}
+            </p>
+            <button className="danger" disabled={busy} onClick={act}>
+              Leave Queue
+            </button>
+          </div>
+        ) : (
+          service && (
+            <div className="service-card">
+              <h2>{service.name}</h2>
+              <p>{service.description}</p>
+              <p>
+                Estimated wait for a new arrival: {service.estimatedWait}{" "}
+                minutes
+              </p>
               <button
                 className="primary"
-                type="button"
-                onClick={handleJoinQueue}
+                disabled={busy || !service.isOpen}
+                onClick={act}
               >
                 Join Queue
               </button>
-            ) : (
-              <>
-                <p className="success-message">
-                  You have joined the queue for {selectedService.name}.
-                </p>
-
-                <button
-                  className="danger"
-                  type="button"
-                  onClick={handleLeaveQueue}
-                >
-                  Leave Queue
-                </button>
-              </>
-            )}
-          </div>
+            </div>
+          )
         )}
       </section>
     </>
