@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { mockUsers } from "../data/mockUsers";
+import { api, session } from "../api/client";
 import "./AuthPage.css";
 
 const initialForm = {
@@ -45,17 +45,15 @@ export default function LoginPage({ onLogin }) {
     if (!form.password) {
       nextErrors.password = "Password is required.";
     } else if (form.password.length < 8) {
-      nextErrors.password =
-        "Password must contain at least 8 characters.";
+      nextErrors.password = "Password must contain at least 8 characters.";
     } else if (form.password.length > 128) {
-      nextErrors.password =
-        "Password must be 128 characters or fewer.";
+      nextErrors.password = "Password must be 128 characters or fewer.";
     }
 
     return nextErrors;
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
     const nextErrors = validateForm();
@@ -65,47 +63,31 @@ export default function LoginPage({ onLogin }) {
       return;
     }
 
-    const account = mockUsers.find(
-      (user) =>
-        user.role === "user" &&
-        user.email.toLowerCase() ===
-          form.email.trim().toLowerCase() &&
-        user.password === form.password
-    );
-
-    if (!account) {
-      setErrors({
-        form:
-          "Incorrect email or password. Try one of the demo accounts below.",
+    try {
+      const result = await api("/auth/login", {
+        method: "POST",
+        body: { ...form, expectedRole: "user" },
       });
-
-      return;
+      session.set(result.token);
+      onLogin(result.user);
+      navigate("/dashboard");
+    } catch (error) {
+      setErrors({ ...error.fields, form: error.message });
     }
-
-    // TODO (backend phase): replace mockUsers with the Node.js login API.
-    onLogin(account);
-    navigate("/dashboard");
   }
 
   return (
     <main className="login-page">
-      <section
-        className="login-card"
-        aria-labelledby="login-title"
-      >
+      <section className="login-card" aria-labelledby="login-title">
         <div className="login-brand" aria-hidden="true">
           Q
         </div>
 
-        <p className="login-eyebrow">
-          QueueSmart TicketManager
-        </p>
+        <p className="login-eyebrow">QueueSmart TicketManager</p>
 
         <h1 id="login-title">Welcome back</h1>
 
-        <p className="login-intro">
-          Sign in to manage your place in line.
-        </p>
+        <p className="login-intro">Sign in to manage your place in line.</p>
 
         {location.state?.registrationComplete && (
           <p className="success-banner" role="status">
@@ -127,9 +109,7 @@ export default function LoginPage({ onLogin }) {
               onChange={handleChange}
               autoComplete="email"
               aria-invalid={Boolean(errors.email)}
-              aria-describedby={
-                errors.email ? "email-error" : undefined
-              }
+              aria-describedby={errors.email ? "email-error" : undefined}
               placeholder="name@example.com"
             />
 
@@ -154,19 +134,12 @@ export default function LoginPage({ onLogin }) {
               onChange={handleChange}
               autoComplete="current-password"
               aria-invalid={Boolean(errors.password)}
-              aria-describedby={
-                errors.password
-                  ? "password-error"
-                  : undefined
-              }
+              aria-describedby={errors.password ? "password-error" : undefined}
               placeholder="At least 8 characters"
             />
 
             {errors.password && (
-              <p
-                className="field-error"
-                id="password-error"
-              >
+              <p className="field-error" id="password-error">
                 {errors.password}
               </p>
             )}
@@ -183,13 +156,8 @@ export default function LoginPage({ onLogin }) {
           </button>
         </form>
 
-        <aside
-          className="demo-accounts"
-          aria-labelledby="demo-accounts-title"
-        >
-          <h2 id="demo-accounts-title">
-            Demo user account
-          </h2>
+        <aside className="demo-accounts" aria-labelledby="demo-accounts-title">
+          <h2 id="demo-accounts-title">Demo user account</h2>
 
           <div className="demo-account">
             <strong>User</strong>
@@ -199,15 +167,11 @@ export default function LoginPage({ onLogin }) {
         </aside>
 
         <p className="register-link">
-          Need an account?{" "}
-          <Link to="/register">Register</Link>
+          Need an account? <Link to="/register">Register</Link>
         </p>
 
         <p className="alternate-login-link">
-          QueueSmart staff?{" "}
-          <Link to="/admin/login">
-            Administrator login
-          </Link>
+          QueueSmart staff? <Link to="/admin/login">Administrator login</Link>
         </p>
       </section>
     </main>

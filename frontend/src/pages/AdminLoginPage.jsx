@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { mockUsers } from "../data/mockUsers";
+import { api, session } from "../api/client";
 import "./AuthPage.css";
 
 const initialForm = { email: "", password: "" };
@@ -31,7 +31,7 @@ export default function AdminLoginPage({ onLogin }) {
     return nextErrors;
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     const nextErrors = validateForm();
 
@@ -40,23 +40,11 @@ export default function AdminLoginPage({ onLogin }) {
       return;
     }
 
-    const administrator = mockUsers.find(
-      (user) =>
-        user.role === "admin" &&
-        user.email.toLowerCase() === form.email.trim().toLowerCase() &&
-        user.password === form.password,
-    );
-
-    if (!administrator) {
-      setErrors({
-        form: "Incorrect administrator email or password. Use the demo account below.",
-      });
-      return;
-    }
-
-    // TODO (backend phase): replace mockUsers with the Node.js admin login API.
-    onLogin(administrator);
-    navigate("/admin");
+    try {
+      const result = await api('/auth/login', { method: 'POST', body: { ...form, expectedRole: 'admin' } });
+      session.set(result.token); onLogin(result.user);
+      navigate('/admin');
+    } catch (error) { setErrors({ ...error.fields, form: error.message }); }
   }
 
   return (

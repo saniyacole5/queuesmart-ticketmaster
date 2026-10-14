@@ -11,6 +11,7 @@ export default function QueueManagementPage() {
     serveNext,
     removeEntry,
     moveEntry,
+    setPriority,
   } = useQueues();
   const { notify } = useNotifications();
 
@@ -18,11 +19,9 @@ export default function QueueManagementPage() {
   const [error, setError] = useState("");
 
   const selectedService = services.find(
-    (service) => service.id === Number(selectedId)
+    (service) => service.id === Number(selectedId),
   );
-  const entries = selectedService
-    ? entriesForService(selectedService.id)
-    : [];
+  const entries = selectedService ? entriesForService(selectedService.id) : [];
 
   function handleSelect(event) {
     const { value } = event.target;
@@ -31,32 +30,48 @@ export default function QueueManagementPage() {
     setError(value ? "" : "Select a service to manage its queue.");
   }
 
-  function handleServeNext() {
+  async function handleServeNext() {
     if (!selectedService) {
       setError("Select a service to manage its queue.");
       return;
     }
 
-    const served = serveNext(selectedService.id);
+    let served;
+    try {
+      served = await serveNext(selectedService.id);
+    } catch (error) {
+      setError(error.message);
+      return;
+    }
 
     notify(
       served
         ? `${served.name} was served in ${selectedService.name}.`
         : `${selectedService.name} has nobody waiting.`,
-      served ? "success" : "info"
+      served ? "success" : "info",
     );
   }
 
-  function handleRemove(entry) {
-    removeEntry(entry.id);
+  async function handleRemove(entry) {
+    try {
+      await removeEntry(entry.id);
+    } catch (error) {
+      setError(error.message);
+      return;
+    }
     notify(`${entry.name} was removed from the queue.`, "info");
   }
 
-  function handleMove(entry, direction) {
-    moveEntry(entry.id, direction);
+  async function handleMove(entry, direction) {
+    try {
+      await moveEntry(entry.id, direction);
+    } catch (error) {
+      setError(error.message);
+      return;
+    }
     notify(
       `${entry.name} moved ${direction} in ${selectedService.name}.`,
-      "info"
+      "info",
     );
   }
 
@@ -126,8 +141,8 @@ export default function QueueManagementPage() {
 
           {!selectedService.isOpen && (
             <p className="empty">
-              This queue is closed. Reopen it from the Admin Dashboard to
-              serve users.
+              This queue is closed. Reopen it from the Admin Dashboard to serve
+              users.
             </p>
           )}
 
@@ -151,9 +166,22 @@ export default function QueueManagementPage() {
                     <tr key={entry.id}>
                       <td className="queue-position">#{index + 1}</td>
                       <td>{entry.name}</td>
-                      <td>{entry.joinedAt}</td>
+                      <td>{new Date(entry.joinedAt).toLocaleTimeString()}</td>
                       <td>
-                        <StatusBadge>{entry.priority}</StatusBadge>
+                        <select
+                          aria-label={`Priority for ${entry.name}`}
+                          value={entry.priority}
+                          onChange={async (e) => {
+                            try {
+                              await setPriority(entry.id, e.target.value);
+                            } catch (err) {
+                              setError(err.message);
+                            }
+                          }}
+                        >
+                          <option value="standard">Standard</option>
+                          <option value="priority">Priority</option>
+                        </select>
                       </td>
                       <td>
                         <div className="actions">
@@ -161,7 +189,10 @@ export default function QueueManagementPage() {
                             type="button"
                             className="icon-button"
                             onClick={() => handleMove(entry, "up")}
-                            disabled={index === 0}
+                            disabled={
+                              index === 0 ||
+                              entries[index - 1]?.priority !== entry.priority
+                            }
                             aria-label={`Move ${entry.name} up`}
                           >
                             ↑
@@ -171,7 +202,10 @@ export default function QueueManagementPage() {
                             type="button"
                             className="icon-button"
                             onClick={() => handleMove(entry, "down")}
-                            disabled={index === entries.length - 1}
+                            disabled={
+                              index === entries.length - 1 ||
+                              entries[index + 1]?.priority !== entry.priority
+                            }
                             aria-label={`Move ${entry.name} down`}
                           >
                             ↓

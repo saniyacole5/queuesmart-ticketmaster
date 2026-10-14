@@ -1,38 +1,41 @@
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
-import { queueHistory } from "../data/mockData";
-
+import { useQueues } from "../context/QueueContext";
 export default function HistoryPage() {
+  const { history } = useQueues();
   return (
     <>
       <PageHeader
         title="Queue History"
-        description="View queues the user previously joined."
+        description="Your queue participation, returned by the backend."
       />
-
       <section className="panel">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Service</th>
-                <th>Outcome</th>
-              </tr>
-            </thead>
-            
-            <tbody>
-              {queueHistory.map((entry) => (
-                <tr key={entry.id}>
-                  <td>{entry.date}</td>
-                  <td>{entry.serviceName}</td>
-                  <td>
-                    <StatusBadge>{entry.outcome}</StatusBadge></td>
+        {history.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Joined</th>
+                  <th>Service</th>
+                  <th>Outcome</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {history.map((h) => (
+                  <tr key={h.id}>
+                    <td>{new Date(h.date).toLocaleString()}</td>
+                    <td>{h.serviceName}</td>
+                    <td>
+                      <StatusBadge>{h.outcome}</StatusBadge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p>No queue history yet.</p>
+        )}
       </section>
     </>
   );

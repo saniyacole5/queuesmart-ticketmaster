@@ -14,8 +14,9 @@ export default function AdminDashboardPage() {
   );
   const openCount = services.filter((service) => service.isOpen).length;
 
-  function handleToggle(service) {
-    toggleQueueOpen(service.id);
+  async function handleToggle(service) {
+    try { await toggleQueueOpen(service.id); }
+    catch (error) { notify(error.message, 'error'); return; }
     notify(
       `${service.name} was ${service.isOpen ? "closed" : "opened"}.`,
       service.isOpen ? "info" : "success"
@@ -78,7 +79,7 @@ export default function AdminDashboardPage() {
                 <p>{service.description}</p>
                 <p>
                   {queueLength(service.id)} waiting ·{" "}
-                  {service.estimatedWait} min expected ·{" "}
+                  {service.expectedDuration} min per user ·{" "}
                   {service.priority} priority
                 </p>
               </div>
