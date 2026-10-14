@@ -17,7 +17,7 @@ function fixture() {
   const people = [1, 2, 3, 4].map(id => ({ id, name: `User ${id}`, role: 'user' }));
   return { store, services, notifications, history, queues, people };
 }
-// OWNER 1
+// MEMBER 1
 test('auth: registration, canonical emails, hashed passwords, safe role and duplicate conflict', () => {
   const store = createStore(), auth = createAuth(store);
   const user = auth.register({ name: ' New ', email: ' NEW@example.com ', password: 'Password1' });
@@ -43,7 +43,7 @@ test('auth: credentials, role matching, expiring and revoked sessions', () => {
   auth.logout(next.token); throws(() => auth.authenticate(next.token), 401);
   throws(() => auth.authenticate('missing'), 401);
 });
-// OWNER 2
+// MEMBER 2
 test('services: create/update/list and validation cannot partially mutate existing service', () => {
   const { services, store } = fixture();
   const body = { name: 'Concert', description: 'Tickets', expectedDuration: 5, priority: 'high' };
@@ -64,7 +64,7 @@ test('priority ordering preserves arrival ties, does not mutate input', () => {
   const input = [{ id: 1, order: 1, priority: 'standard' }, { id: 2, order: 2, priority: 'priority' }, { id: 3, order: 1, priority: 'standard' }];
   assert.deepEqual(orderEntries(input).map(e => e.id), [2, 1, 3]); assert.equal(input[0].id, 1);
 });
-// OWNER 3 + OWNER 4
+// MEMBER 3 + MEMBER 4
 test('join/leave: identity, one active queue, closed queue, ownership, history, rejoin', () => {
   const { queues, people, history, notifications } = fixture();
   assert.equal(queues.mine(1), null);

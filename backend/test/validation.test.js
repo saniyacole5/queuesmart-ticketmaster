@@ -1,4 +1,4 @@
-// OWNER 1 + OWNER 2: extend boundary cases as described in TEAM_PLAN.
+// MEMBER 1 + MEMBER 2: extend boundary cases as described in TEAM_PLAN.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as v from '../src/shared/validation.js';

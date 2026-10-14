@@ -6,6 +6,6 @@ Run `npm ci`, then `npm run dev` (watch) or `npm start`. Run `npm test` / `npm r
 
 Optional: copy `.env.example` to `.env`. The server binds to localhost. Dev integration uses the Vite proxy, so no cross-origin credential configuration is needed. This is a single-process classroom demo, with local seeded accounts and in-memory opaque bearer sessions. Tokens expire after 60 minutes by default and logout revokes them. Public registration always creates `user`; admins are seeded by server policy. Scrypt hashes are salted; hashes/passwords never appear in API user responses.
 
-The baseline uses synchronous hashing and in-process arrays/maps for simplicity. Owner 1's burst/login task addresses event-loop blocking. Multi-process queues, payments, ticket inventory, SMS/email, appointment booking, and production hosting are not A3 requirements and are not implemented. History means queue participation, not proof of ticket purchase.
+The baseline uses synchronous hashing and in-process arrays/maps for simplicity. Member 1's burst/login task addresses event-loop blocking. Multi-process queues, payments, ticket inventory, SMS/email, appointment booking, and production hosting are not A3 requirements and are not implemented. History means queue participation, not proof of ticket purchase.
 
-For code owners and API details, see the ZIP's docs, or `../docs/a3/` after applying it to the repository.
+For code members and API details, see the ZIP's docs, or `../docs/a3/` after applying it to the repository.

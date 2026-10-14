@@ -1,0 +1,49 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> queuesmart-backend@0.1.0 coverage
+> node --test --experimental-test-coverage --test-coverage-include=src/**/*.js --test-coverage-exclude=src/server.js --test-coverage-lines=75 --test-coverage-functions=75
+
+✔ HTTP contracts and end-to-end A3 workflow (513.506374ms)
+✔ auth: registration, canonical emails, hashed passwords, safe role and duplicate conflict (170.170613ms)
+✔ auth: credentials, role matching, expiring and revoked sessions (277.300768ms)
+✔ services: create/update/list and validation cannot partially mutate existing service (3.205662ms)
+✔ wait: zero at first position, linear estimate, rejects invalid inputs (0.21293ms)
+✔ priority ordering preserves arrival ties, does not mutate input (0.215284ms)
+✔ join/leave: identity, one active queue, closed queue, ownership, history, rejoin (1.125203ms)
+✔ serve: FIFO within priority tier, status and wait update, isolated services (0.439522ms)
+✔ manual reorder only within tier and service; removals record outcome (0.6907ms)
+✔ notifications: close threshold on transitions, deduplication, read ownership and rejoin (0.556818ms)
+✔ object validation rejects null, arrays, scalars and unknown keys (3.896121ms)
+✔ strings enforce type, required values, length and optional trimming (0.638621ms)
+✔ email syntax and canonicalization (0.622347ms)
+✔ numeric types, whole numbers, bounded duration (0.447243ms)
+✔ enum, boolean and path ID rules (0.754024ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 852.161052
+ℹ start of coverage report
+ℹ -------------------------------------------------------------------
+ℹ file               | line % | branch % | funcs % | uncovered lines
+ℹ -------------------------------------------------------------------
+ℹ src                |        |          |         | 
+ℹ  app.js            | 100.00 |   100.00 |  100.00 | 
+ℹ  modules           |        |          |         | 
+ℹ   auth.js          | 100.00 |   100.00 |  100.00 | 
+ℹ   history.js       | 100.00 |   100.00 |  100.00 | 
+ℹ   notifications.js | 100.00 |   100.00 |  100.00 | 
+ℹ   queues.js        | 100.00 |   100.00 |  100.00 | 
+ℹ   services.js      | 100.00 |   100.00 |  100.00 | 
+ℹ   waitTime.js      | 100.00 |   100.00 |  100.00 | 
+ℹ  shared            |        |          |         | 
+ℹ   errors.js        | 100.00 |    78.95 |  100.00 | 
+ℹ   validation.js    | 100.00 |    97.50 |  100.00 | 
+ℹ  store.js          | 100.00 |   100.00 |  100.00 | 
+ℹ -------------------------------------------------------------------
+ℹ all files          | 100.00 |    97.86 |  100.00 | 
+ℹ -------------------------------------------------------------------
+ℹ end of coverage report
