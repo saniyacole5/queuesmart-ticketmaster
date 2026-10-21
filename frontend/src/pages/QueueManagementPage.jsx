@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import { useQueues } from "../context/QueueContext";
@@ -7,6 +7,8 @@ import { useNotifications } from "../context/NotificationContext";
 export default function QueueManagementPage() {
   const {
     services,
+    loading,
+    error: refreshError,
     entriesForService,
     serveNext,
     removeEntry,
@@ -15,64 +17,58 @@ export default function QueueManagementPage() {
   } = useQueues();
   const { notify } = useNotifications();
 
-  const [selectedId, setSelectedId] = useState(services[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState("");
   const [error, setError] = useState("");
 
+  const pendingRef = useRef(false);
+  const [pending, setPending] = useState("");
+  // Derive a fallback after asynchronous loading; retain a valid user selection.
   const selectedService = services.find(
     (service) => service.id === Number(selectedId),
-  );
+  ) ?? services[0];
   const entries = selectedService ? entriesForService(selectedService.id) : [];
 
   function handleSelect(event) {
-    const { value } = event.target;
-
-    setSelectedId(value);
-    setError(value ? "" : "Select a service to manage its queue.");
+    setSelectedId(event.target.value);
+    setError("");
   }
 
-  async function handleServeNext() {
-    if (!selectedService) {
-      setError("Select a service to manage its queue.");
-      return;
-    }
-
-    let served;
+  async function runAction(label, action, message) {
+    // A ref also guards clicks arriving before React renders disabled controls.
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setPending(label);
+    setError("");
     try {
-      served = await serveNext(selectedService.id);
-    } catch (error) {
-      setError(error.message);
-      return;
+      const result = await action();
+      notify(message(result), "success");
+    } catch (requestError) {
+      setError(requestError.message || "Queue update failed. Please try again.");
+    } finally {
+      pendingRef.current = false;
+      setPending("");
     }
-
-    notify(
-      served
-        ? `${served.name} was served in ${selectedService.name}.`
-        : `${selectedService.name} has nobody waiting.`,
-      served ? "success" : "info",
-    );
   }
 
-  async function handleRemove(entry) {
-    try {
-      await removeEntry(entry.id);
-    } catch (error) {
-      setError(error.message);
-      return;
-    }
-    notify(`${entry.name} was removed from the queue.`, "info");
+  function handleServeNext() {
+    if (!selectedService) return;
+    return runAction("Serving next user", () => serveNext(selectedService.id),
+      (served) => `${served.name} was served in ${selectedService.name}.`);
   }
 
-  async function handleMove(entry, direction) {
-    try {
-      await moveEntry(entry.id, direction);
-    } catch (error) {
-      setError(error.message);
-      return;
-    }
-    notify(
-      `${entry.name} moved ${direction} in ${selectedService.name}.`,
-      "info",
-    );
+  function handleRemove(entry) {
+    return runAction("Removing user", () => removeEntry(entry.id),
+      () => `${entry.name} was removed from the queue.`);
+  }
+
+  function handleMove(entry, direction) {
+    return runAction("Moving user", () => moveEntry(entry.id, direction),
+      () => `${entry.name} moved ${direction} in ${selectedService.name}.`);
+  }
+
+  function handlePriority(entry, priority) {
+    return runAction("Updating priority", () => setPriority(entry.id, priority),
+      () => `Priority updated for ${entry.name}.`);
   }
 
   return (
@@ -86,6 +82,7 @@ export default function QueueManagementPage() {
             className="button primary"
             onClick={handleServeNext}
             disabled={
+              Boolean(pending) || loading ||
               !selectedService ||
               !selectedService.isOpen ||
               entries.length === 0
@@ -96,12 +93,17 @@ export default function QueueManagementPage() {
         }
       />
 
-      <section className="panel form-panel">
+      {loading && <p role="status">Loading queues…</p>}
+      {refreshError && <p role="alert" className="field-error">{refreshError}</p>}
+      {!loading && !refreshError && services.length === 0 && <p>No services available.</p>}
+      {pending && <p role="status">{pending}…</p>}
+      <section className="panel form-panel" aria-busy={Boolean(pending)}>
         <label htmlFor="queue-service">
           Service
           <select
             id="queue-service"
-            value={selectedId}
+            value={selectedService?.id ?? ""}
+            disabled={Boolean(pending) || loading || services.length === 0}
             required
             onChange={handleSelect}
             aria-invalid={Boolean(error)}
@@ -117,7 +119,7 @@ export default function QueueManagementPage() {
         </label>
 
         {error && (
-          <p id="queue-service-error" className="field-error">
+          <p role="alert" id="queue-service-error" className="field-error">
             {error}
           </p>
         )}
@@ -146,6 +148,8 @@ export default function QueueManagementPage() {
             </p>
           )}
 
+          <p>Priority entries come first, then arrival order. Manual moves are
+            allowed only within the same priority tier. Service priority does not change this order.</p>
           {entries.length === 0 ? (
             <p className="empty">Nobody is waiting in this queue.</p>
           ) : (
@@ -164,20 +168,15 @@ export default function QueueManagementPage() {
                 <tbody>
                   {entries.map((entry, index) => (
                     <tr key={entry.id}>
-                      <td className="queue-position">#{index + 1}</td>
+                      <td className="queue-position">#{entry.position}</td>
                       <td>{entry.name}</td>
                       <td>{new Date(entry.joinedAt).toLocaleTimeString()}</td>
                       <td>
                         <select
                           aria-label={`Priority for ${entry.name}`}
                           value={entry.priority}
-                          onChange={async (e) => {
-                            try {
-                              await setPriority(entry.id, e.target.value);
-                            } catch (err) {
-                              setError(err.message);
-                            }
-                          }}
+                          disabled={Boolean(pending)}
+                          onChange={(event) => handlePriority(entry, event.target.value)}
                         >
                           <option value="standard">Standard</option>
                           <option value="priority">Priority</option>
@@ -190,6 +189,7 @@ export default function QueueManagementPage() {
                             className="icon-button"
                             onClick={() => handleMove(entry, "up")}
                             disabled={
+                              Boolean(pending) ||
                               index === 0 ||
                               entries[index - 1]?.priority !== entry.priority
                             }
@@ -203,6 +203,7 @@ export default function QueueManagementPage() {
                             className="icon-button"
                             onClick={() => handleMove(entry, "down")}
                             disabled={
+                              Boolean(pending) ||
                               index === entries.length - 1 ||
                               entries[index + 1]?.priority !== entry.priority
                             }
@@ -215,6 +216,7 @@ export default function QueueManagementPage() {
                             type="button"
                             className="button small danger"
                             onClick={() => handleRemove(entry)}
+                            disabled={Boolean(pending)}
                           >
                             Remove
                           </button>
