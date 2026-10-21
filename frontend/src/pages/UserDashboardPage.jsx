@@ -86,7 +86,12 @@ export default function UserDashboardPage() {
                 <span>●</span>
                 <div>
                   <p>{notification.message}</p>
-                  <small>{notification.createdAt}</small>
+                  <small>
+                    {new Date(notification.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </small>
                 </div>
               </div>
             ))

@@ -1,16 +1,31 @@
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import { useQueues } from "../context/QueueContext";
+
 export default function HistoryPage() {
-  const { history } = useQueues();
+  const { history, loading, error } = useQueues();
+
   return (
     <>
       <PageHeader
         title="Queue History"
-        description="Your queue participation, returned by the backend."
+        description="Review your queue participation and outcomes."
       />
+
       <section className="panel">
-        {history.length ? (
+        {loading && (
+          <p role="status">Loading your queue history...</p>
+        )}
+
+        {error && (
+          <p role="alert" className="field-error">
+            {error}
+            {history.length > 0 &&
+              " Showing your last loaded history."}
+          </p>
+        )}
+
+        {history.length > 0 ? (
           <div className="table-wrap">
             <table>
               <thead>
@@ -20,13 +35,22 @@ export default function HistoryPage() {
                   <th>Outcome</th>
                 </tr>
               </thead>
+
               <tbody>
-                {history.map((h) => (
-                  <tr key={h.id}>
-                    <td>{new Date(h.date).toLocaleString()}</td>
-                    <td>{h.serviceName}</td>
+                {history.map((record) => (
+                  <tr key={record.id}>
                     <td>
-                      <StatusBadge>{h.outcome}</StatusBadge>
+                      {new Date(
+                        record.joinedAt,
+                      ).toLocaleString()}
+                    </td>
+
+                    <td>{record.serviceName}</td>
+
+                    <td>
+                      <StatusBadge>
+                        {record.outcome}
+                      </StatusBadge>
                     </td>
                   </tr>
                 ))}
@@ -34,7 +58,8 @@ export default function HistoryPage() {
             </table>
           </div>
         ) : (
-          <p>No queue history yet.</p>
+          !loading &&
+          !error && <p>No queue history yet.</p>
         )}
       </section>
     </>

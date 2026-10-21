@@ -1,87 +1,219 @@
 /* eslint-disable react-refresh/only-export-components */
 
-import { createContext, useContext, useState } from "react";
 import {
-  services as initialServices,
-  queueEntries as initialQueueEntries,
-} from "../data/mockData";
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  DATA_CHANGED_EVENT,
+  startAutoRefresh,
+} from "../api/liveUpdates";
+
+import { api } from "../api/client";
 
 const QueueContext = createContext(null);
 
-export function QueueProvider({ children }) {
-  const [services, setServices] = useState(initialServices);
-  const [queueEntries, setQueueEntries] = useState(initialQueueEntries);
+export function QueueProvider({ children, account }) {
+  const accountId = account?.id ?? null;
+
+  const [data, setData] = useState(() => ({
+    services: [],
+    queueEntries: [],
+    currentQueue: null,
+    history: [],
+  }));
+
+  const [loading, setLoading] = useState(accountId !== null);
+  const [error, setError] = useState("");
+
+  const mounted = useRef(false);
+  const requestVersion = useRef(0);
+
+  const refreshState = useCallback(async () => {
+    if (accountId === null || !mounted.current) {
+      return false;
+    }
+
+    const version = ++requestVersion.current;
+
+    try {
+      const next = await api("/state");
+
+      if (
+        !mounted.current ||
+        version !== requestVersion.current
+      ) {
+        return false;
+      }
+
+      setData(next);
+      setError("");
+
+      return true;
+    } catch (requestError) {
+      if (
+        mounted.current &&
+        version === requestVersion.current &&
+        requestError.status !== 401
+      ) {
+        setError(
+          "Could not refresh queue information. Retrying automatically.",
+        );
+      }
+
+      return false;
+    } finally {
+      if (
+        mounted.current &&
+        version === requestVersion.current
+      ) {
+        setLoading(false);
+      }
+    }
+  }, [accountId]);
+
+  useEffect(() => {
+    mounted.current = true;
+
+    const stop =
+      accountId === null
+        ? null
+        : startAutoRefresh(refreshState, {
+            listenForChanges: false,
+          });
+
+    return () => {
+      mounted.current = false;
+      requestVersion.current += 1;
+      stop?.();
+    };
+  }, [accountId, refreshState]);
+
+  async function mutate(path, options) {
+    // Older refresh responses cannot overwrite this action's refresh.
+    requestVersion.current += 1;
+
+    let result;
+
+    try {
+      result = await api(path, options);
+    } catch (requestError) {
+      requestError.fields ??= {};
+      throw requestError;
+    }
+
+    await refreshState();
+
+    if (mounted.current) {
+      window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
+    }
+
+    return result;
+  }
+
+  const {
+    services,
+    queueEntries,
+    currentQueue,
+    history,
+  } = data;
 
   function entriesForService(serviceId) {
-    return queueEntries.filter((entry) => entry.serviceId === serviceId);
+    return queueEntries.filter(
+      (entry) => entry.serviceId === Number(serviceId),
+    );
   }
 
   function queueLength(serviceId) {
-    return entriesForService(serviceId).length;
+    const service = services.find(
+      (item) => item.id === Number(serviceId),
+    );
+
+    return service?.queueLength ?? 0;
   }
 
   function saveService(service) {
-    setServices((currentServices) =>
-      currentServices.some((item) => item.id === service.id)
-        ? currentServices.map((item) =>
-            item.id === service.id ? service : item
-          )
-        : [...currentServices, service]
+    const editing =
+      service.id !== undefined && service.id !== null;
+
+    const body = {
+      name: service.name,
+      description: service.description,
+      expectedDuration: service.expectedDuration,
+      priority: service.priority,
+      isOpen: service.isOpen,
+    };
+
+    return mutate(
+      editing ? `/services/${service.id}` : "/services",
+      {
+        method: editing ? "PATCH" : "POST",
+        body,
+      },
     );
   }
 
   function toggleQueueOpen(serviceId) {
-    setServices((currentServices) =>
-      currentServices.map((service) =>
-        service.id === serviceId
-          ? { ...service, isOpen: !service.isOpen }
-          : service
-      )
+    const service = services.find(
+      (item) => item.id === Number(serviceId),
     );
+
+    if (!service) {
+      throw new Error("Service not found. Refresh and try again.");
+    }
+
+    return mutate(`/services/${service.id}`, {
+      method: "PATCH",
+      body: { isOpen: !service.isOpen },
+    });
+  }
+
+  function joinQueue(serviceId) {
+    return mutate(`/services/${serviceId}/queue`, {
+      method: "POST",
+      body: {},
+    });
+  }
+
+  function leaveQueue(entryId) {
+    return mutate(`/queue-entries/${entryId}`, {
+      method: "DELETE",
+    });
   }
 
   function serveNext(serviceId) {
-    const next = entriesForService(serviceId)[0];
-
-    if (!next) return null;
-
-    setQueueEntries((currentEntries) =>
-      currentEntries.filter((entry) => entry.id !== next.id)
-    );
-
-    return next;
+    return mutate(`/services/${serviceId}/serve-next`, {
+      method: "POST",
+      body: {},
+    });
   }
 
   function removeEntry(entryId) {
-    setQueueEntries((currentEntries) =>
-      currentEntries.filter((entry) => entry.id !== entryId)
-    );
+    return mutate(`/admin/queue-entries/${entryId}`, {
+      method: "DELETE",
+    });
   }
 
-  // Swaps an entry with its neighbour inside the same service, leaving the
-  // interleaved entries of other services where they are.
   function moveEntry(entryId, direction) {
-    setQueueEntries((currentEntries) => {
-      const entry = currentEntries.find((item) => item.id === entryId);
-
-      if (!entry) return currentEntries;
-
-      const sameService = currentEntries.filter(
-        (item) => item.serviceId === entry.serviceId
-      );
-      const position = sameService.indexOf(entry);
-      const target = direction === "up" ? position - 1 : position + 1;
-
-      if (target < 0 || target >= sameService.length) return currentEntries;
-
-      const neighbour = sameService[target];
-
-      return currentEntries.map((item) => {
-        if (item.id === entry.id) return neighbour;
-        if (item.id === neighbour.id) return entry;
-        return item;
-      });
+    return mutate(`/admin/queue-entries/${entryId}/move`, {
+      method: "POST",
+      body: { direction },
     });
+  }
+
+  function setPriority(entryId, priority) {
+    return mutate(
+      `/admin/queue-entries/${entryId}/priority`,
+      {
+        method: "PATCH",
+        body: { priority },
+      },
+    );
   }
 
   return (
@@ -89,13 +221,21 @@ export function QueueProvider({ children }) {
       value={{
         services,
         queueEntries,
+        currentQueue,
+        history,
+        loading,
+        error,
+        refreshState,
         entriesForService,
         queueLength,
         saveService,
         toggleQueueOpen,
+        joinQueue,
+        leaveQueue,
         serveNext,
         removeEntry,
         moveEntry,
+        setPriority,
       }}
     >
       {children}
@@ -107,7 +247,9 @@ export function useQueues() {
   const context = useContext(QueueContext);
 
   if (!context) {
-    throw new Error("useQueues must be used inside a QueueProvider");
+    throw new Error(
+      "useQueues must be used inside a QueueProvider",
+    );
   }
 
   return context;
