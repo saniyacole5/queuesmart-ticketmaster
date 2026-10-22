@@ -14,5 +14,3 @@ Use a fresh API process; do not assume generated starter evidence proves your fi
 10. Try duplicate join, join closed service, unknown service ID, numeric-string duration, oversized description, invalid priority, user -> admin operation, and leave another user's entry. Record status codes and structured error fields.
 11. Restart API: registered users/queues/history/notifications reset. Old tokens get 401; seeded accounts can sign in again. Demonstrate this is deliberate A3 memory-only behavior.
 12. Everyone reviews requirements and final GitHub commit authors/PRs. Fill truthful contribution/discussion rows; submit one final Word/PDF to Canvas. Code/tests must already be in the repository. Do not upload this scaffold ZIP as the Canvas submission.
-
-Recommended evidence: final coverage report, GitHub PR/commit links, one services/queue/history screenshot per feature, and request/response examples with authentication tokens redacted. Keep screenshots optional unless your instructor requires them.

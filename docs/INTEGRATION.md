@@ -21,7 +21,7 @@ Apply the overlay to the reviewed checkout, or compare files manually when your 
 
 `mockData.js` and `mockUsers.js` can remain in the repo for A2 history, but no overlaid production screen imports them. They do not establish authentication or displayed queue history in this integration.
 
-Queue context mutations return Promises; the included handlers await them and catch errors. Any new call sites must do the same. Read operations start with empty arrays/null, so initial asynchronous loads are safe. `QueueManagementPage` starts without a selected service until data loads; member 3 should improve the default selection. Add pending controls across remaining mutation forms as listed in TEAM_PLAN.
+Queue context mutations return Promises; the included handlers await them and catch errors. Any new call sites must do the same. Read operations start with empty arrays/null, so initial asynchronous loads are safe. `QueueManagementPage` derives its first-service selection after data loads and retains a valid selection across refreshes. Serve/remove/move/priority controls and service selection stay disabled for the full mutation and state-refresh cycle; a synchronous guard prevents overlapping clicks. Join/leave has the same click guard. Queue pages expose loading and refresh failures. Other members own pending controls on their forms as listed in TEAM_PLAN.
 
 Data flow: browser -> Vite /api proxy -> Express route/authorization -> module -> in-memory store -> JSON -> React state. Mutation results refresh state immediately; other sessions update within roughly three seconds. A three-second poll is sufficient for A3; do not label this implementation as WebSocket real-time push.
 

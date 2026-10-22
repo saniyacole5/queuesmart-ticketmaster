@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { useQueues } from "../context/QueueContext";
 export default function JoinQueuePage() {
-  const { services, currentQueue, joinQueue, leaveQueue } = useQueues();
+  const { services, currentQueue, joinQueue, leaveQueue, loading, error: refreshError } = useQueues();
   const [selectedId, setSelectedId] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const pendingRef = useRef(false);
   const service = services.find((s) => s.id === Number(selectedId));
   async function act() {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
     setError("");
     setBusy(true);
     try {
@@ -17,6 +20,7 @@ export default function JoinQueuePage() {
     } catch (err) {
       setError(err.message);
     } finally {
+      pendingRef.current = false;
       setBusy(false);
     }
   }
@@ -26,12 +30,16 @@ export default function JoinQueuePage() {
         title="Join Queue"
         description="Select an available event and join its ticket queue."
       />
-      <section className="panel">
+      {loading && <p role="status">Loading queue information…</p>}
+      {refreshError && <p role="alert" className="field-error">{refreshError}</p>}
+      {!loading && !refreshError && services.length === 0 && <p>No services available.</p>}
+      {busy && <p role="status">Updating your queue…</p>}
+      <section className="panel" aria-busy={busy}>
         <label htmlFor="service">Service</label>
         <select
           id="service"
           value={selectedId}
-          disabled={!!currentQueue || busy}
+          disabled={!!currentQueue || busy || loading}
           onChange={(e) => setSelectedId(e.target.value)}
         >
           <option value="">Choose a service</option>
@@ -54,7 +62,7 @@ export default function JoinQueuePage() {
               Position #{currentQueue.position} · {currentQueue.estimatedWait}{" "}
               minutes · {currentQueue.status}
             </p>
-            <button className="danger" disabled={busy} onClick={act}>
+            <button className="danger" disabled={busy || loading} onClick={act}>
               Leave Queue
             </button>
           </div>
@@ -69,7 +77,7 @@ export default function JoinQueuePage() {
               </p>
               <button
                 className="primary"
-                disabled={busy || !service.isOpen}
+                disabled={busy || loading || !service.isOpen}
                 onClick={act}
               >
                 Join Queue

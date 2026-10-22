@@ -54,6 +54,9 @@ export function createQueues(
       v.object(body, []); // Identity and priority always come from server policy.
       const service = getService(store, serviceId);
       if (!service.isOpen) fail(409, "QUEUE_CLOSED", "This queue is closed.");
+      // Keep the duplicate check and insertion synchronous: concurrent HTTP joins
+      // cannot interleave in this single-process, in-memory A3 implementation.
+      // A persistent/multi-process implementation must enforce this transactionally.
       if (store.entries.some((e) => e.userId === user.id))
         fail(409, "ALREADY_QUEUED", "Leave your active queue first.");
       const entry = {
