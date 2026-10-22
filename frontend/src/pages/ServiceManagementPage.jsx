@@ -53,7 +53,12 @@ function validateService(form) {
 }
 
 export default function ServiceManagementPage() {
-  const { services: items, saveService } = useQueues();
+  const { services: items, 
+    saveService,
+    loading,
+    error: loadError,
+   } = useQueues();
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(blank);
   const [editingId, setEditingId] = useState(null);
   const [errors, setErrors] = useState({});
@@ -86,6 +91,7 @@ export default function ServiceManagementPage() {
 
   async function save(event) {
     event.preventDefault();
+    if (saving || loading) return;
 
     const next = validateService(form);
 
@@ -95,8 +101,13 @@ export default function ServiceManagementPage() {
 
     const existing = items.find((item) => item.id === editingId);
 
+    if (editingId !== null && !existing) {
+      setErrors({ form: "Service no longer exists. Refresh and try again." });
+      return;
+    }
+
     const saved = {
-      ...(editingId ? { id: editingId } : {}),
+      ...(editingId !== null? { id: editingId } : {}),
       name: form.name.trim(),
       description: form.description.trim(),
       expectedDuration: Number(form.duration),
@@ -104,25 +115,30 @@ export default function ServiceManagementPage() {
       isOpen: existing?.isOpen ?? true,
     };
 
+    setSaving(true);
+    
     try {
       await saveService(saved);
+
+      notify(
+        `Service "${saved.name}" ${editingId === null ? "created" : "updated"}.`,
+        "success",
+      );
+
+      setEditingId(null);
+      setForm(blank);
+      setErrors({});
+      setSubmitted(false);
     } catch (error) {
+      const fields = error.fields ?? {};
       setErrors({
-        ...error.fields,
-        duration: error.fields.expectedDuration,
+        ...fields,
+        duration: fields.expectedDuration,
         form: error.message,
       });
-      return;
+    } finally {
+      setSaving(false);
     }
-
-    notify(
-      `Service "${saved.name}" ${editingId === null ? "created" : "updated"}.`,
-      "success",
-    );
-
-    setEditingId(null);
-    setForm(blank);
-    setSubmitted(false);
   }
 
   return (
@@ -145,6 +161,7 @@ export default function ServiceManagementPage() {
             Service name
             <input
               id="service-name"
+              disabled={saving || loading}
               type="text"
               value={form.name}
               maxLength={limits.nameMax}
@@ -167,6 +184,7 @@ export default function ServiceManagementPage() {
             Description
             <textarea
               id="service-description"
+              disabled={saving || loading}
               value={form.description}
               maxLength={limits.descriptionMax}
               required
@@ -190,6 +208,7 @@ export default function ServiceManagementPage() {
             Expected duration (minutes)
             <input
               id="service-duration"
+              disabled={saving || loading}
               type="number"
               inputMode="numeric"
               min={limits.durationMin}
@@ -217,6 +236,7 @@ export default function ServiceManagementPage() {
             Priority
             <select
               id="service-priority"
+              disabled={saving || loading}
               value={form.priority}
               required
               onChange={(event) => update("priority", event.target.value)}
@@ -234,18 +254,20 @@ export default function ServiceManagementPage() {
             </p>
           )}
 
-          <button type="submit" className="primary">
-            {editingId === null ? "Create service" : "Save changes"}
+          <button type="submit" className="primary" disabled={saving || loading}>
+            {saving ? "Saving..." : editingId === null ? "Create service" : "Save changes"}
           </button>
 
           {editingId !== null && (
             <button
               type="button"
               className="text-button"
+              disabled={saving || loading}
               onClick={() => {
                 setEditingId(null);
                 setForm(blank);
                 setErrors({});
+                setSubmitted(false);
               }}
             >
               Cancel edit
@@ -256,6 +278,17 @@ export default function ServiceManagementPage() {
 
       <section className="panel">
         <h2>Services</h2>
+        {loading && <p role="status">Loading services...</p>}
+
+        {loadError && (
+          <p role="alert" className="field-error">
+            {loadError}
+          </p>
+        )}
+
+        {!loading && !loadError && items.length === 0 && (
+          <p className="empty">No services have been created yet.</p>
+        )}
         {items.map((item) => (
           <div className="service-row" key={item.id}>
             <strong>{item.name}</strong>
@@ -264,7 +297,7 @@ export default function ServiceManagementPage() {
               {item.expectedDuration} minutes per user · {item.priority}{" "}
               priority
             </p>
-            <button type="button" onClick={() => edit(item)}>
+            <button type="button" disabled={saving || loading} onClick={() => edit(item)}>
               Edit {item.name}
             </button>
           </div>
