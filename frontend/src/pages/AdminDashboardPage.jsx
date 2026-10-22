@@ -3,9 +3,10 @@ import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import { useQueues } from "../context/QueueContext";
 import { useNotifications } from "../context/NotificationContext";
-
+import { useState } from "react";
 export default function AdminDashboardPage() {
-  const { services, queueLength, toggleQueueOpen } = useQueues();
+  const { services, queueLength, toggleQueueOpen, loading, error: loadError,} = useQueues();
+  const [pendingId, setPendingId] = useState(null);
   const { notify } = useNotifications();
 
   const totalWaiting = services.reduce(
@@ -15,13 +16,34 @@ export default function AdminDashboardPage() {
   const openCount = services.filter((service) => service.isOpen).length;
 
   async function handleToggle(service) {
-    try { await toggleQueueOpen(service.id); }
-    catch (error) { notify(error.message, 'error'); return; }
+    if (pendingId !== null || loading) return;
+    setPendingId(service.id);
+
+    try {
+    await toggleQueueOpen(service.id);
+
     notify(
       `${service.name} was ${service.isOpen ? "closed" : "opened"}.`,
-      service.isOpen ? "info" : "success"
+      service.isOpen ? "info" : "success",
     );
+  } catch (error) {
+    notify(error.message, "error");
+  } finally {
+    setPendingId(null);
   }
+}
+
+if (loading) {
+  return (
+    <>
+      <PageHeader
+        title="Admin Dashboard"
+        description="Monitor every service queue and open or close them as needed."
+      />
+      <p role="status">Loading service queues...</p>
+    </>
+  );
+}
 
   return (
     <>
@@ -34,7 +56,11 @@ export default function AdminDashboardPage() {
           </Link>
         }
       />
-
+{loadError && (
+  <p role="alert" className="field-error">
+    {loadError}
+  </p>
+)}
       <section className="stats">
         <article>
           <small>TOTAL SERVICES</small>
@@ -70,7 +96,9 @@ export default function AdminDashboardPage() {
         </div>
 
         {services.length === 0 ? (
-          <p className="empty">No services have been created yet.</p>
+          <p className="empty">{loadError ? "Service information is currently unavailable."
+            : "No services have been created yet."}
+          </p>
         ) : (
           services.map((service) => (
             <div className="list-row" key={service.id}>
@@ -94,9 +122,14 @@ export default function AdminDashboardPage() {
                   className={`button small ${
                     service.isOpen ? "danger" : "primary"
                   }`}
+                  disabled={pendingId !== null || loading}
                   onClick={() => handleToggle(service)}
                 >
-                  {service.isOpen ? "Close queue" : "Open queue"}
+                  {pendingId === service.id
+                    ? "Updating..."
+                    : service.isOpen
+                      ? "Close queue"
+                      : "Open queue"}
                 </button>
               </div>
             </div>
