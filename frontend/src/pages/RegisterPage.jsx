@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useNotifications } from "../context/NotificationContext";
 import "./AuthPage.css";
 import { api } from "../api/client";
+import { describeSubmitError } from "./authErrors";
 
 const initialForm = {
   name: "",
@@ -19,6 +20,13 @@ export default function RegisterPage() {
 
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
+  const [pending, setPending] = useState(false);
+  // claimed synchronously, before the first await. This is the client-side half
+  // of the duplicate-registration fix: the backend's `claiming` set now answers
+  // 409 EMAIL_EXISTS to a second concurrent request for the same email, so
+  // without this guard a double click would create the account and then show
+  // "Email is already registered" for the account it just created.
+  const submitting = useRef(false);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -68,6 +76,8 @@ export default function RegisterPage() {
   async function handleSubmit(event) {
     event.preventDefault();
 
+    if (submitting.current) return;
+
     const nextErrors = validateForm();
     setErrors(nextErrors);
 
@@ -75,7 +85,12 @@ export default function RegisterPage() {
       return;
     }
 
+    submitting.current = true;
+    setPending(true);
+
     try {
+      // `role` is never sent: public registration cannot grant admin rights, and
+      // the backend rejects the field outright as an unknown key.
       await api("/auth/register", {
         method: "POST",
         body: { name: form.name, email: form.email, password: form.password },
@@ -83,7 +98,9 @@ export default function RegisterPage() {
       notify("Account created. Sign in to continue.", "success");
       navigate("/login", { state: { registrationComplete: true } });
     } catch (error) {
-      setErrors({ ...error.fields, form: error.message });
+      submitting.current = false;
+      setPending(false);
+      setErrors(describeSubmitError(error));
     }
   }
 
@@ -102,7 +119,7 @@ export default function RegisterPage() {
           Register to join queues and receive status updates.
         </p>
 
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} noValidate aria-busy={pending}>
           <div className="form-field">
             <label htmlFor="register-name">Name</label>
             <input
@@ -200,8 +217,8 @@ export default function RegisterPage() {
             )}
           </div>
 
-          <button className="login-button" type="submit">
-            Create account
+          <button className="login-button" type="submit" disabled={pending}>
+            {pending ? "Creating account..." : "Create account"}
           </button>
         </form>
 

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api, session } from "../api/client";
+import { describeSubmitError } from "./authErrors";
 import "./AuthPage.css";
 
 const initialForm = {
@@ -14,6 +15,11 @@ export default function LoginPage({ onLogin }) {
 
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
+  const [pending, setPending] = useState(false);
+  // checked and set synchronously, before the first await, so a second click can
+  // never get past it. `pending` drives what the user sees; it cannot be the
+  // barrier itself because a re-render is not guaranteed between two fast clicks.
+  const submitting = useRef(false);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -56,12 +62,17 @@ export default function LoginPage({ onLogin }) {
   async function handleSubmit(event) {
     event.preventDefault();
 
+    if (submitting.current) return;
+
     const nextErrors = validateForm();
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
-      return;
+      return; // Rejected before claiming, so the form stays submittable.
     }
+
+    submitting.current = true;
+    setPending(true);
 
     try {
       const result = await api("/auth/login", {
@@ -70,9 +81,13 @@ export default function LoginPage({ onLogin }) {
       });
       session.set(result.token);
       onLogin(result.user);
+      // Deliberately still locked: the redirect is underway and re-enabling the
+      // button here would only flash it briefly before this page unmounts.
       navigate("/dashboard");
     } catch (error) {
-      setErrors({ ...error.fields, form: error.message });
+      submitting.current = false; // Released only on failure, so a retry works.
+      setPending(false);
+      setErrors(describeSubmitError(error));
     }
   }
 
@@ -95,7 +110,7 @@ export default function LoginPage({ onLogin }) {
           </p>
         )}
 
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} noValidate aria-busy={pending}>
           <div className="form-field">
             <label htmlFor="email">Email</label>
 
@@ -151,8 +166,8 @@ export default function LoginPage({ onLogin }) {
             </p>
           )}
 
-          <button className="login-button" type="submit">
-            Sign in
+          <button className="login-button" type="submit" disabled={pending}>
+            {pending ? "Signing in..." : "Sign in"}
           </button>
         </form>
 

@@ -119,7 +119,7 @@
   width: 100%;
 }
 
-.login-button:hover {
+.login-button:hover:not(:disabled) {
   background: #08736f;
 }
 
@@ -127,8 +127,15 @@
   background: #13213c;
 }
 
-.admin-login-button:hover {
+.admin-login-button:hover:not(:disabled) {
   background: #263653;
+}
+
+/* MEMBER 1: visible pending state while an await is in flight. The button keeps
+   its own colour so the form still reads as itself, dimmed and non-interactive. */
+.login-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .login-button:focus-visible,
