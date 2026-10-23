@@ -103,7 +103,7 @@ The Vite development proxy forwards `/api` requests to `http://127.0.0.1:3001`. 
 | User          | `user@queuesmart.com`  | `User1234`  |
 | Administrator | `admin@queuesmart.com` | `Admin1234` |
 
-Use these accounts for local testing. Register additional users to test separate queues and account permissions. If a restart invalidates your session, sign in again.
+Use these accounts for local testing. Register additional users to test separate queues and account permissions. These two accounts are re-seeded on every boot, so they always work; accounts you register yourself do not survive a restart. A restart always invalidates your browser session and the app returns you to the sign-in page — see [Session lifetime, reload and restart](docs/INTEGRATION.md#session-lifetime-reload-and-restart-member-1).
 
 ## Project layout
 

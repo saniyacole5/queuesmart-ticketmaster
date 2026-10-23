@@ -8,6 +8,7 @@ import { createHistory } from '../src/modules/history.js';
 import { createNotifications } from '../src/modules/notifications.js';
 import { estimateWait, orderEntries } from '../src/modules/waitTime.js';
 const throws = (fn, status) => assert.throws(fn, e => e.status === status);
+const rejects = (promise, status) => assert.rejects(promise, e => e.status === status);
 function fixture() {
   const store = createStore(), services = createServices(store);
   let tick = 0;
@@ -18,28 +19,30 @@ function fixture() {
   return { store, services, notifications, history, queues, people };
 }
 // MEMBER 1
-test('auth: registration, canonical emails, hashed passwords, safe role and duplicate conflict', () => {
+// register/login are async (scrypt is awaited), so these use rejects/await.
+// authenticate/logout stay synchronous: they do no hashing.
+test('auth: registration, canonical emails, hashed passwords, safe role and duplicate conflict', async () => {
   const store = createStore(), auth = createAuth(store);
-  const user = auth.register({ name: ' New ', email: ' NEW@example.com ', password: 'Password1' });
+  const user = await auth.register({ name: ' New ', email: ' NEW@example.com ', password: 'Password1' });
   assert.equal(user.name, 'New'); assert.equal(user.role, 'user');
   assert.equal(user.digest, undefined); assert.equal(store.users.at(-1).password, undefined);
-  throws(() => auth.register({ name: 'X', email: 'new@example.com', password: 'Password1' }), 409);
-  throws(() => auth.register({ name: 'X', email: 'x@x.com', password: 'Password1', role: 'admin' }), 400);
+  await rejects(auth.register({ name: 'X', email: 'new@example.com', password: 'Password1' }), 409);
+  await rejects(auth.register({ name: 'X', email: 'x@x.com', password: 'Password1', role: 'admin' }), 400);
 });
-test('auth: credentials, role matching, expiring and revoked sessions', () => {
+test('auth: credentials, role matching, expiring and revoked sessions', async () => {
   let now = 1000;
   const auth = createAuth(createStore(), { now: () => now, ttl: 1000 });
   for (const body of [
     { email: 'unknown@x.com', password: 'Password1' },
     { email: 'user@queuesmart.com', password: 'Wrong123' },
     { email: 'user@queuesmart.com', password: 'User1234', expectedRole: 'admin' },
-  ]) throws(() => auth.login(body), 401);
-  throws(() => auth.login({ email: 'user@queuesmart.com', password: 'User1234', expectedRole: 'staff' }), 400);
-  const session = auth.login({ email: 'user@queuesmart.com', password: 'User1234', expectedRole: 'user' });
+  ]) await rejects(auth.login(body), 401);
+  await rejects(auth.login({ email: 'user@queuesmart.com', password: 'User1234', expectedRole: 'staff' }), 400);
+  const session = await auth.login({ email: 'user@queuesmart.com', password: 'User1234', expectedRole: 'user' });
   assert.equal(session.token.length, 64); assert.equal(auth.authenticate(session.token).role, 'user');
   throws(() => requireRole(session.user, 'admin'), 403); requireRole(session.user, 'user');
   now = 2000; throws(() => auth.authenticate(session.token), 401);
-  const next = auth.login({ email: 'admin@queuesmart.com', password: 'Admin1234' });
+  const next = await auth.login({ email: 'admin@queuesmart.com', password: 'Admin1234' });
   auth.logout(next.token); throws(() => auth.authenticate(next.token), 401);
   throws(() => auth.authenticate('missing'), 401);
 });

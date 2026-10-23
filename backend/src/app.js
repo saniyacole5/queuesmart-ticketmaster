@@ -14,8 +14,10 @@ export function createApp(options = {}) {
   const app = express(); app.disable('x-powered-by'); app.use(express.json({ limit: '16kb' }));
   const ok = (res, data, status = 200) => res.status(status).json({ data });
   app.get('/api/health', (req, res) => ok(res, { status: 'ok', storage: 'in-memory' }));
-  app.post('/api/auth/register', (req, res) => ok(res, auth.register(req.body), 201));
-  app.post('/api/auth/login', (req, res) => ok(res, auth.login(req.body)));
+  // Async: credential hashing is awaited. Express 5 forwards rejected promises
+  // from handlers to errorHandler, so no explicit try/catch is needed here.
+  app.post('/api/auth/register', async (req, res) => ok(res, await auth.register(req.body), 201));
+  app.post('/api/auth/login', async (req, res) => ok(res, await auth.login(req.body)));
   app.use('/api', (req, res, next) => {
     req.token = /^Bearer ([a-f0-9]{64})$/.exec(req.get('Authorization') || '')?.[1];
     req.user = auth.authenticate(req.token); res.set('Cache-Control', 'no-store'); next();

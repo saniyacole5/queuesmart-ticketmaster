@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, session } from "../api/client";
+import { describeSubmitError } from "./authErrors";
 import "./AuthPage.css";
 
 const initialForm = { email: "", password: "" };
@@ -9,6 +10,9 @@ export default function AdminLoginPage({ onLogin }) {
   const navigate = useNavigate();
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
+  const [pending, setPending] = useState(false);
+  // see LoginPage: claimed synchronously so two fast clicks cannot both submit.
+  const submitting = useRef(false);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -33,6 +37,7 @@ export default function AdminLoginPage({ onLogin }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (submitting.current) return;
     const nextErrors = validateForm();
 
     if (Object.keys(nextErrors).length > 0) {
@@ -40,11 +45,18 @@ export default function AdminLoginPage({ onLogin }) {
       return;
     }
 
+    submitting.current = true;
+    setPending(true);
+
     try {
       const result = await api('/auth/login', { method: 'POST', body: { ...form, expectedRole: 'admin' } });
       session.set(result.token); onLogin(result.user);
       navigate('/admin');
-    } catch (error) { setErrors({ ...error.fields, form: error.message }); }
+    } catch (error) {
+      submitting.current = false;
+      setPending(false);
+      setErrors(describeSubmitError(error));
+    }
   }
 
   return (
@@ -59,7 +71,7 @@ export default function AdminLoginPage({ onLogin }) {
           Sign in to manage services and customer queues.
         </p>
 
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} noValidate aria-busy={pending}>
           <div className="form-field">
             <label htmlFor="admin-email">Administrator email</label>
             <input
@@ -113,8 +125,12 @@ export default function AdminLoginPage({ onLogin }) {
             </p>
           )}
 
-          <button className="login-button admin-login-button" type="submit">
-            Sign in as administrator
+          <button
+            className="login-button admin-login-button"
+            type="submit"
+            disabled={pending}
+          >
+            {pending ? "Signing in..." : "Sign in as administrator"}
           </button>
         </form>
 
