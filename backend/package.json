@@ -13,6 +13,7 @@
     "coverage": "node --test --experimental-test-coverage --test-coverage-include=src/**/*.js --test-coverage-exclude=src/server.js --test-coverage-lines=75 --test-coverage-functions=75"
   },
   "dependencies": {
-    "express": "5.3.0"
+    "express": "5.3.0",
+    "mysql2": "^3.24.6"
   }
 }
