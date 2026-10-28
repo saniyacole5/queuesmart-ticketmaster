@@ -1,243 +1,150 @@
-# QueueSmart TicketManager — Assignment 3
+# QueueSmart Ticketmaster — Assignment 4 (MySQL persistence)
 
-QueueSmart is a ticket queue management application with a React frontend and a Node.js/Express backend. Assignment 2 established the frontend screens. Assignment 3 connects those screens to backend APIs for authentication, services, queues, wait estimates, notifications, and participation history.
+QueueSmart is a React/Vite frontend with a Node.js 24 + Express 5 backend. Assignment 3 uses **in-memory** users, services, queue entries, notifications, and history. Assignment 4 requires a **real persistent MySQL database**, functioning database-backed APIs, React display of actual stored data, input validation, meaningful tests and test coverage, and a group report. The existing frontend/backend API contract is in [`docs/API.md`](docs/API.md).
 
-Repository: [queuesmart-ticketmaster](https://github.com/saniyacole5/queuesmart-ticketmaster)
+> **Important current status:** Aiven MySQL connectivity is configured in `backend/src/db/pool.js`, but **a successful connection does not make the application database-backed**. The current `backend/src/app.js` still builds `createStore()` from `backend/src/store.js`. Member work below must replace this production storage path and preserve the API response shapes. `/api/health` should say `storage: 'mysql'` only after that conversion has been verified.
 
-The backend scaffold provides a working foundation. Each member must complete their selected work package, add meaningful tests, verify frontend integration, and document their actual contributions. See [docs/TEAM_PLAN.md](docs/TEAM_PLAN.md) for completion tasks and acceptance criteria.
+## Setup at a glance
 
-## Technology and Assignment 3 scope
+| Component              | Technology                | Where it runs                                      |
+| ---------------------- | ------------------------- | -------------------------------------------------- |
+| React frontend         | Vite / React              | Your own computer, usually `http://localhost:5173` |
+| Express backend        | Node.js 24 / Express 5    | Your own computer, usually `http://127.0.0.1:3001` |
+| Shared persistent data | **MySQL 8.4 on Aiven**    | Aiven cloud service                                |
+| Aiven project          | `queuesmart-ticketmaster` | Organizational container                           |
+| Aiven service          | `queuesmart-mysql`        | Hosted MySQL instance                              |
+| MySQL database         | **`queuesmart_db`**       | Contains all application tables                    |
+| Runtime MySQL user     | **`queuesmart_app`**      | Used by Node.js, subject to grants                 |
 
-| Area                 | Technology / approach                           |
-| -------------------- | ----------------------------------------------- |
-| Frontend             | React, JavaScript, React Router, CSS            |
-| Frontend tooling     | Vite and ESLint                                 |
-| Backend              | Node.js 24 and Express                          |
-| API                  | HTTP endpoints with JSON requests and responses |
-| Backend testing      | Built-in Node.js test runner and V8 coverage    |
-| Assignment 3 storage | In-memory arrays and maps                       |
-| Planned persistence  | MySQL in Assignment 4                           |
+Aiven also has an automatically created `defaultdb` and `avnadmin` account. These are not the intended QueueSmart runtime database/user. Do **not** put an Aiven database password into GitHub, screenshots, documentation, source code, or the React frontend.
 
-Assignment 3 uses in-memory storage. Users created through registration, sessions, queue entries, notifications, and history reset when the backend restarts. Seeded demonstration accounts and services are recreated on startup. Real email/SMS delivery, payments, and production hosting are outside this foundation.
+## Step 2 — Database credentials and local `.env`
 
-## Install Node.js and npm
+The database is hosted on Aiven; each teammate uses MySQL Workbench or the Node.js backend to connect to the **same `queuesmart_db`**.
 
-Install Node.js on your computer once. Then install project dependencies separately inside `backend` and `frontend`.
+The `queuesmart_app` password will be provided. Never paste it in chat or commit it.
 
-### Windows
+The repository already tracks the **public** Aiven CA certificate at `backend/certs/ca.pem`; this is _not_ a secret or private key.
 
-1. Open the [official Node.js download page](https://nodejs.org/en/download).
-2. Select **Node.js 24 LTS** and the **Windows Installer (.msi)** for your computer.
-3. Run the installer using its default options, including npm and adding Node.js to PATH.
-4. Close and reopen VS Code so its terminal picks up the installation.
-5. Open **Terminal → New Terminal** and check:
+In VS Code terminal **from the repository root**:
 
-   ```bash
-   node --version
-   npm --version
-   ```
-
-Node should show `v24.x.x`; npm should display a version number. The npm version bundled with Node.js 24 is sufficient for this project.
-
-If you installed an earlier Node.js version with the Windows installer, install Node.js 24 using the same method. If you use a version manager, select/install Node.js 24 through that manager instead.
-
-On macOS or Linux, use the official download page's instructions for your operating system or your existing version manager, then verify both commands above.
-
-Also install Git and a code editor such as VS Code. Python is not required to install dependencies or run the project.
-
-## Get the project
-
-For a new local copy:
-
-```bash
-git clone https://github.com/saniyacole5/queuesmart-ticketmaster.git
-cd queuesmart-ticketmaster
+```powershell
+cd backend
+Copy-Item .env.example .env
 ```
 
-If you already have a local copy, open it in VS Code. Commit or otherwise preserve your current work before switching branches or pulling updates. Start new work from the latest shared foundation on `main`.
+Then edit **`backend/.env`** to replace `REPLACE_WITH_DB_PASSWORD` with the password for **`queuesmart_app`**. The example specifies:
 
-## Run the project
+```dotenv
+PORT=3001
+SESSION_TTL_MINUTES=60
+DB_HOST=queuesmart-mysql-queuesmart-ticketmaster.i.aivencloud.com
+DB_PORT=15771
+DB_USER=queuesmart_app
+DB_PASSWORD=REPLACE_WITH_DB_PASSWORD
+DB_NAME=queuesmart_db
+DB_SSL_CA_PATH=./certs/ca.pem
+```
 
-Run the backend and frontend in **two separate terminals**. Both examples begin in the repository root, `queuesmart-ticketmaster`.
+Aiven may change service endpoints, so use the current Aiven dashboard values if they differ. `DB_SSL_CA_PATH` is resolved relative to the **`backend` working directory**. SSL/TLS certificate verification remains enabled for the Aiven connection. `backend/.gitignore` ignores `.env` and does _not_ ignore the tracked public `ca.pem`.
 
-### Terminal 1: backend
+**Quick connection check:**
 
-```bash
+```powershell
+npm ci
+npm run db:check
+```
+
+A successful connection reports `database: queuesmart_db` and the authenticated account. Before schema creation, `db:check` may report missing tables, which is expected.
+
+## Step 3 — Create currently empty database tables
+
+The Aiven database exists but has **no project tables yet**. Creating a MySQL user or `.env` alone does not create tables.
+
+Project Tables:
+
+1. `user_credentials` — email, salted scrypt digest, role
+2. `user_profiles` — profile name and optional contact/preferences, linked to credentials
+3. `auth_sessions` — hashed bearer tokens with expiry, linked to credentials
+4. `services` — name, description, duration, priority, open state
+5. `queues` — one queue per service, open/closed state
+6. `queue_entries` — users, ordering, priority, active/terminal status, timestamp
+7. `history` — participation outcome and immutable service-name snapshot
+8. `notifications` — user-specific events, message, read state, timestamp
+
+`queue_entries` includes a generated-column unique constraint that permits **at most one `waiting` entry per user across all queues**, even when two backends try to join concurrently. Terminal entries remain as records (soft finish) so foreign keys and history remain intact.
+
+To verify schema creation:
+
+```sql
+USE queuesmart_db;
+SHOW TABLES;
+SELECT COUNT(*) AS users FROM user_credentials;
+SELECT COUNT(*) AS services FROM services;
+```
+
+Both counts should initially be zero. You can optionally insert **demo services only** using `npm run db:seed:services` from `backend` after schema creation; seed is opt-in and safe to rerun. It does **not** create demo users, passwords, or admin accounts. See [`docs/A4_DATABASE_DESIGN.md`](docs/A4_DATABASE_DESIGN.md).
+
+## Step 4 — Run the application locally
+
+Open **two terminals**, each from the repository root:
+
+```powershell
+# Terminal 1
 cd backend
 npm ci
 npm run dev
 ```
 
-`npm ci` installs dependencies from `package-lock.json`. Both `package.json` and `package-lock.json` must be present in the backend folder.
-
-Check the API in your browser:
-
-```text
-http://127.0.0.1:3001/api/health
-```
-
-A JSON response containing `"status":"ok"` confirms that the API is running.
-
-### Terminal 2: frontend
-
-```bash
+```powershell
+# Terminal 2
 cd frontend
 npm ci
 npm run dev
 ```
 
-Open the URL printed by Vite, normally:
+Visit `http://localhost:5173`. The React/Vite development proxy forwards `/api` calls to the Express server on port `3001` (`frontend/vite.config.js`). The API status is at `http://127.0.0.1:3001/api/health`.
 
-```text
-http://localhost:5173
-```
+**Critical:** While the old `app.js`/modules still call `createStore()`, this runs **the A3 in-memory backend** and the existing seeded demo credentials may still work, but no records will reach MySQL. Do not claim this is a database-backed demo. The team must replace storage with SQL repositories, await asynchronous queries in Express 5 handlers, and make `/api/health` report the correct storage system.
 
-Keep both terminals running while using the application. Press `Ctrl+C` in a terminal to stop its server. On later runs, use `npm run dev` in each folder; reinstall dependencies when the lockfile changes.
+### Final database-backed demo acceptance
 
-The Vite development proxy forwards `/api` requests to `http://127.0.0.1:3001`. If you change the backend port, update the proxy target in `frontend/vite.config.js` too. The backend runs with defaults without a `.env` file; optional settings are described in `backend/.env.example`.
+- Register a new user, log in, create services as an admin, join a queue, verify position/wait time, mark notifications read, and complete/leave a queue.
+- In Workbench on **Aiven `queuesmart_db`**, verify corresponding SQL rows and foreign key relations.
+- Restart **the backend**; the service, user, queue/history and notification data should remain. Sessions should be either durably stored or have an explicitly documented expiration/re-login policy.
+- Use separate browser sessions for user/admin and two different users to check isolation, role restrictions, concurrent joins, and queue ordering.
+- Verify there is **no dependency on `defaultdb`**, and API data is served from MySQL rather than the old `store.js`.
 
-### Local demonstration accounts
+## Team workflow — four members
 
-| Role          | Email                  | Password    |
-| ------------- | ---------------------- | ----------- |
-| User          | `user@queuesmart.com`  | `User1234`  |
-| Administrator | `admin@queuesmart.com` | `Admin1234` |
+Member labels are work packages. Each member should contribute actual code, tests, frontend verification and evidence. Detailed deliverables, file boundaries, handoffs, acceptance criteria and proposed PR order are in [`docs/A4_TEAM_PLAN.md`](docs/A4_TEAM_PLAN.md).
 
-Use these accounts for local testing. Register additional users to test separate queues and account permissions. These two accounts are re-seeded on every boot, so they always work; accounts you register yourself do not survive a restart. A restart always invalidates your browser session and the app returns you to the sign-in page — see [Session lifetime, reload and restart](docs/INTEGRATION.md#session-lifetime-reload-and-restart-member-1).
+| Work package | Main task                                                                                        | Files owned / scaffold starting points                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| **Member 1** | MySQL schema, authenticated users/profiles/sessions and authentication API persistence           | `backend/sql/`, `backend/src/repositories/users.repo.js`, `backend/src/modules/auth.js`    |
+| **Member 2** | Services and queue metadata persistence, duration/priority and admin UI                          | `backend/src/repositories/services.repo.js`, `backend/src/modules/services.js`, service UI |
+| **Member 3** | Concurrent queue entry lifecycle, positions, priority/move and transaction safety                | `backend/src/repositories/queues.repo.js`, `backend/src/modules/queues.js`, queue UI       |
+| **Member 4** | Notifications/history persistence, integration checks, database tests/coverage and demo evidence | `backend/src/repositories/activity.repo.js`, notification/history modules, CI and reports  |
 
-## Project layout
+**Shared files** (`backend/src/app.js`, `backend/src/server.js`, `backend/src/db/pool.js`, `frontend/src/api/`, `.github/workflows/`) should be changed by agreement. Preserve the `/api` shapes documented in `docs/API.md`, including `data` response wrapping and error codes. See [`docs/A4_INTEGRATION.md`](docs/A4_INTEGRATION.md).
 
-All team documentation is in **`/docs` at the repository root**.
+Suggested feature branches: `feature/a4-auth-db`, `feature/a4-services-db`, `feature/a4-queues-db`, `feature/a4-activity-db`. Base each on the team's agreed updated `a4-scaffold` foundation. Open PRs to the agreed integration branch; require review and rerun tests after each merge. Resolve conflicts collaboratively, never silently replace a teammate's work.
 
-| Location                                     | Purpose                                                                         |
-| -------------------------------------------- | ------------------------------------------------------------------------------- |
-| `README.md`                                  | Project overview, setup, run instructions, and team workflow                    |
-| `backend/package.json` / `package-lock.json` | Backend commands and dependency versions                                        |
-| `backend/src/server.js`                      | Starts the API server                                                           |
-| `backend/src/app.js`                         | Express routes, authentication checks, and error handling                       |
-| `backend/src/store.js`                       | In-memory application data                                                      |
-| `backend/src/modules/`                       | Six backend modules                                                             |
-| `backend/src/shared/`                        | Shared input validation and error utilities                                     |
-| `backend/test/`                              | Backend unit and API tests                                                      |
-| `frontend/src/api/`                          | Shared API request client                                                       |
-| `frontend/src/context/`                      | Queue and notification state connected to the API                               |
-| `frontend/src/pages/` / `components/`        | Application screens and reusable UI                                             |
-| `frontend/vite.config.js`                    | Frontend development configuration and API proxy                                |
-| `docs/`                                      | Requirements, member work packages, API contract, integration, and verification |
+## Testing, CI and submission
 
-Preserve the completed Assignment 2 layout and styling when integrating backend behavior. Replace mock data and simulated actions with API calls. Display backend responses, handle errors, and prevent repeated submissions while requests are pending.
+From `backend`: `npm test`, `npm run coverage` (current scripts enforce at least 75% line/function coverage for measured backend code). From `frontend`: `npm run lint`, `npm run build`. The included `.github/workflows/a4.yml` is a **proposed** GitHub Actions workflow with a temporary MySQL 8.4 service and intentionally non-production credentials. The included `backend/test/a4-schema.test.js` checks schema structure without touching the shared Aiven database. Actual DB integration tests must be added by the team using an isolated CI/test database and real assertions.
 
-## Documentation reading order
+**Never run test suites that clear or reset tables against the shared Aiven `queuesmart_db`.** Use a separate local/CI database, unique fixture IDs and transactions. CI must not require the Aiven password.
 
-Read this root README first, then the `/docs` files in the following order:
+The Assignment 4 group submission is one Word/PDF file with: GitHub repository link, SQL schema with primary/foreign keys, real coverage results, and truthful contributions from all four members. Capture evidence of data persisting after backend restart. See [`docs/A4_SUBMISSION_CHECKLIST.md`](docs/A4_SUBMISSION_CHECKLIST.md).
 
-| Order | Document                                    | Purpose / when to use it                                                                                    |
-| ----- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 1     | [REQUIREMENTS.md](docs/REQUIREMENTS.md)     | Understand each Assignment 3 requirement and its code, tests, and demonstration evidence.                   |
-| 2     | [TEAM_PLAN.md](docs/TEAM_PLAN.md)           | Choose a member work package; review tasks, acceptance criteria, and merge order.                           |
-| 3     | [API.md](docs/API.md)                       | Agree on endpoints, request/response fields, permissions, validation, and queue rules before changing code. |
-| 4     | [INTEGRATION.md](docs/INTEGRATION.md)       | Connect the existing frontend screens to the backend and preserve the Assignment 2 design.                  |
-| 5     | [VERIFICATION.md](docs/VERIFICATION.md)     | Review the foundation's checks, limitations, and remaining team verification.                               |
-| 6     | [DEMO_CHECKLIST.md](docs/DEMO_CHECKLIST.md) | Test the complete user/admin workflow after integration and before submission.                              |
+### Documentation reading order
 
-Everyone should read documents 1–4 before starting their selected package. Use documents 5–6 throughout testing and the final joint review. Generate fresh test and coverage results from the final merged code.
+1. **This README**, then [`A4_CHANGES.md`](A4_CHANGES.md) for ZIP-versus-branch file comparisons.
+2. [`docs/A4_DATABASE_DESIGN.md`](docs/A4_DATABASE_DESIGN.md): schema, keys, empty database, privileges, SSL.
+3. [`docs/A4_TEAM_PLAN.md`](docs/A4_TEAM_PLAN.md): four work packages, handoffs and review order.
+4. Existing [`docs/API.md`](docs/API.md) in the GitHub branch: current user/admin endpoint contract.
+5. [`docs/A4_INTEGRATION.md`](docs/A4_INTEGRATION.md): safe replacement of in-memory modules.
+6. [`docs/A4_TEST_PLAN.md`](docs/A4_TEST_PLAN.md) and [`docs/A4_SUBMISSION_CHECKLIST.md`](docs/A4_SUBMISSION_CHECKLIST.md): verification and evidence.
 
-## Four-member work packages
-
-Member numbers identify work packages. They are not assigned to specific people. Each person should choose a package with the team and record the selection in `docs/TEAM_PLAN.md`.
-
-| Member package | Primary responsibility                                               | Frontend integration                                                        |
-| -------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Member 1       | Authentication, registration, sessions, roles, and shared validation | User/admin login, registration, and session restoration                     |
-| Member 2       | Service management and wait-time estimation                          | Service management and administrator dashboard                              |
-| Member 3       | Queue lifecycle, priority, ordering, and queue permissions           | Join/leave, queue status, queue context, and administrator queue management |
-| Member 4       | Notifications and participation history                              | Notification context, history, and user dashboard                           |
-
-Each member is responsible for implementation refinements, validation, tests, frontend verification, and a reviewable pull request for their package. Everyone participates in final integration, the demo checklist, and contribution documentation.
-
-Discuss changes to shared files such as `app.js`, `store.js`, contexts, or the API client before editing them. Keep API behavior and frontend expectations aligned with `docs/API.md`.
-
-## Team Git workflow
-
-After preserving any current local changes, create a feature branch from the latest `main`:
-
-```bash
-git switch main
-git pull origin main
-git switch -c feature/a3-auth
-```
-
-Suggested branch names:
-
-| Member package | Branch                             |
-| -------------- | ---------------------------------- |
-| Member 1       | `feature/a3-auth`                  |
-| Member 2       | `feature/a3-services-wait`         |
-| Member 3       | `feature/a3-queues`                |
-| Member 4       | `feature/a3-notifications-history` |
-
-Before committing, run the relevant checks and inspect `git status` and `git diff`. Stage the specific files you changed, commit with a clear message, and push your branch. For example, for Member 1:
-
-```bash
-git status
-git diff
-git add backend/src/modules/auth.js backend/test/auth-member.test.js
-git commit -m "Improve authentication validation and add boundary tests"
-git push -u origin feature/a3-auth
-```
-
-Use your actual changed paths; the member test file in this example is created as part of the work package. Include any related route, validation, or frontend changes you made.
-
-Open a pull request to `main` with a summary, test results, and any API changes. Have another member review it. Follow the merge sequence in `docs/TEAM_PLAN.md`, and rerun integration checks after merges.
-
-**Conflict resolution is shared.** The member whose branch has conflicts should work with the members who edited the affected files, preserve the intended behavior, and rerun checks before merging. No single member is assigned responsibility for all push or merge conflicts. Avoid force-pushing shared branches.
-
-Use your own GitHub account and author identity for your contributions. Do not commit `node_modules`, `dist`, coverage output, `.env`, or private credentials. When adding a dependency, commit both the relevant `package.json` and `package-lock.json`.
-
-## Tests and verification
-
-From the repository root, run the backend checks:
-
-```bash
-cd backend
-npm test
-npm run coverage
-```
-
-The scaffold's coverage command also runs the tests and enforces at least **75% line coverage and 75% function coverage** for the measured backend code; server startup is excluded. Add meaningful boundary, permissions, lifecycle, and integration tests as features change.
-
-In a separate terminal starting at the repository root, run frontend checks:
-
-```bash
-cd frontend
-npm run lint
-npm run build
-```
-
-A successful build verifies that the frontend compiles. Complete [docs/DEMO_CHECKLIST.md](docs/DEMO_CHECKLIST.md) with separate user/admin browser sessions to verify actual behavior across the frontend and backend.
-
-If retained, `.github/workflows/a3.yml` automates the backend coverage and frontend lint/build checks on GitHub. It is optional for local development. A workflow stored only in `ci/` will not run as a GitHub Action.
-
-## Troubleshooting
-
-| Problem                           | What to check                                                                                                                                                                                                   |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `node` or `npm` is not recognized | Reopen VS Code after installation. On Windows, use `where.exe node` and `where.exe npm` to check which installation is found.                                                                                   |
-| PowerShell blocks `npm.ps1`       | Use Command Prompt as the VS Code terminal, or run `npm.cmd` instead of `npm`.                                                                                                                                  |
-| `npm ci` fails                    | Confirm you are in `backend` or `frontend` and that its manifest and lockfile are present and consistent. For an intentional dependency change, use `npm install` to update the lockfile and commit both files. |
-| Frontend requests fail            | Keep the backend running, check `/api/health`, and verify the Vite proxy target and backend port match.                                                                                                         |
-| Port is already in use            | Stop the other server using that port, or agree on a replacement port and update the relevant configuration.                                                                                                    |
-| Queue data disappears             | Backend restarts reset in-memory data. Recreate test users/queue entries as needed.                                                                                                                             |
-
-`npm run build` creates frontend build files; it does not start the backend or configure production hosting. Use the two development servers above for the Assignment 3 local demonstration.
-
-## Before submission
-
-1. Review every requirement in `docs/REQUIREMENTS.md` against the final implementation.
-2. Merge all reviewed member work and rerun backend tests/coverage and frontend lint/build.
-3. Complete the two-browser demo checklist and resolve integration issues together.
-4. Push the final backend, frontend integration, tests, and documentation to GitHub.
-5. Prepare the required group Word/PDF document with the repository link, backend technology and design rationale, actual member contributions, and discussion notes. Agree together on who assembles and submits it.
-6. Submit the group document through Canvas according to Assignment 3. Keep code and tests in GitHub and confirm the deadline and submission details in Canvas.
-
-The final submission should reflect each member's actual implementation, testing, integration, and review work.
+Existing A3 documents in `docs/` remain useful historical references. Avoid treating their in-memory behavior as A4 acceptance.
