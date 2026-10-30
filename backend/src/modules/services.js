@@ -6,7 +6,7 @@ export function getService(store, id) {
   if (!service) fail(404, "SERVICE_NOT_FOUND", "Service not found.");
   return service;
 }
-export function createServices(store) {
+export function createServices(store, repository = null) {
   function fields(body, partial = false) {
     v.object(body, [
       "name",
@@ -29,6 +29,27 @@ export function createServices(store) {
         output[key] = validate();
     }
     return output;
+  }
+
+  // Use the SQL repository when supplied by the integration owner.
+  if (repository !== null) {
+    return {
+      async list() {
+        return repository.listServices();
+      },
+
+      async create(body) {
+        const validatedFields = fields(body);
+        return repository.createService(validatedFields);
+      },
+
+      async update(id, body) {
+        await repository.getServiceById(id);
+
+        const validatedFields = fields(body, true);
+        return repository.updateService(id, validatedFields);
+      },
+    };
   }
 // Compare names and ignoring spaces and capitalization.
 function checkDuplicateName(name, excludeId) {
