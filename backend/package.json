@@ -13,7 +13,8 @@
     "coverage": "node --test --experimental-test-coverage --test-coverage-include=src/**/*.js --test-coverage-exclude=src/server.js --test-coverage-lines=75 --test-coverage-functions=75",
     "db:check": "node --env-file-if-exists=.env scripts/check-db.js",
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.js",
-    "db:seed:services": "node --env-file-if-exists=.env scripts/seed-services.js"
+    "db:seed:services": "node --env-file-if-exists=.env scripts/seed-services.js",
+    "db:bootstrap-admin": "node --env-file=.env scripts/bootstrap-admin.js"
   },
   "dependencies": {
     "express": "5.3.0",
