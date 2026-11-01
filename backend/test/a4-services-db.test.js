@@ -10,8 +10,8 @@ test(
   async (t) => {
     // Import only when explicitly enabled, so ordinary tests do not
     // initialize a database connection or read a certificate.
+    const { pool } = await import('../src/db/pool.js');
     const {
-      pool,
       createService,
       updateService,
       getServiceById,

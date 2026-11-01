@@ -14,7 +14,8 @@ test('Member 1: real MySQL authentication, sessions and HTTP persistence',
     if (process.env.DB_NAME !== 'queuesmart_db') {
       throw new Error('Set DB_NAME=queuesmart_db on the disposable test instance.');
     }
-    const { pool, findUserByEmail, createUserWithProfile, getUserById,
+    const { pool } = await import('../src/db/pool.js');
+    const { findUserByEmail, createUserWithProfile, getUserById,
       saveSession, findSession, deleteSession } = await import('../src/repositories/users.repo.js');
     const { createSqlAuth, hashPassword } = await import('../src/modules/authSql.js');
     const { createApp } = await import('../src/app.js');
