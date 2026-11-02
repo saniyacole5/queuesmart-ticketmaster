@@ -15,7 +15,9 @@ export const pool = mysql.createPool({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   ...(ssl ? { ssl } : {}),
+  timezone: 'Z', // mysql2 DATETIME values represent UTC (session expirations).
   waitForConnections: true,
   connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 5),
   queueLimit: 0,
 });
+
