@@ -118,7 +118,7 @@ test('Member 1: real MySQL authentication, sessions and HTTP persistence',
       let token;
       try {
         const health=await call(first.base,'/health');
-        assert.equal(health.data.storage,'in-memory');
+        assert.equal(health.data.storage,'mixed');
         assert.equal(health.data.authStorage,'mysql');
         const reg=await call(first.base,'/auth/register','POST',{
           name:'HTTP Test',email:mail,password:'Password123',
