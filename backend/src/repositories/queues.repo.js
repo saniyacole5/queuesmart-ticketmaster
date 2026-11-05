@@ -8,13 +8,57 @@
 import { pool } from '../db/pool.js';
 import { withTransaction } from '../db/transaction.js';
 import { queueEntryRow } from '../db/mappers.js';
+import { decorateEntries } from '../modules/queueView.js';
 export { pool, withTransaction, queueEntryRow };
 
+// The one ordering rule every read shares. `priority` is ENUM('standard',
+// 'priority') and MySQL orders enums by declaration index, so DESC puts the
+// priority tier first. Covered by idx_entries_queue_order.
+const ACTIVE_ENTRY_SELECT = `
+  SELECT e.id, e.user_id, q.service_id, p.name, e.joined_at, e.priority,
+         e.order_seq, s.name AS service_name, s.expected_duration
+  FROM queue_entries e
+  JOIN queues q ON q.id = e.queue_id
+  JOIN services s ON s.id = q.service_id
+  JOIN user_profiles p ON p.user_id = e.user_id
+  WHERE q.service_id = ? AND e.status = 'waiting'
+  ORDER BY e.priority DESC, e.order_seq ASC, e.id ASC
+`;
+
+// Service name and duration ride along on every row, so an empty queue needs
+// no second query -- it simply has nothing to decorate.
+function mapOrdered(rows) {
+  if (rows.length === 0) return [];
+
+  return decorateEntries(rows.map(queueEntryRow), {
+    name: rows[0].service_name,
+    expectedDuration: Number(rows[0].expected_duration),
+  });
+}
+
 export async function listActiveEntriesByService(serviceId, connection = pool) {
-  // TODO Member 3: join queue_entries, queues, user_profiles and services.
-  // ORDER BY priority tier first, then order_seq ASC, id ASC.
-  void serviceId; void connection;
-  throw new Error('A4_MEMBER_3_TODO: listActiveEntriesByService');
+  const [rows] = await connection.execute(ACTIVE_ENTRY_SELECT, [serviceId]);
+
+  return mapOrdered(rows);
+}
+
+// A user holds at most one active entry (uq_queue_entries_active_user), but
+// position only means something within its service -- so resolve the service
+// first, then take this user's decorated row from that ordered queue.
+export async function findActiveEntryForUser(userId, connection = pool) {
+  const [rows] = await connection.execute(
+    `SELECT q.service_id
+     FROM queue_entries e
+     JOIN queues q ON q.id = e.queue_id
+     WHERE e.user_id = ? AND e.status = 'waiting'`,
+    [userId],
+  );
+
+  if (rows.length === 0) return null;
+
+  const ordered = await listActiveEntriesByService(rows[0].service_id, connection);
+
+  return ordered.find((entry) => entry.userId === Number(userId)) ?? null;
 }
 export async function joinQueue({ userId, serviceId }, connection = pool) {
   // TODO Member 3: lock service/queue, verify open, allocate unique order_seq.
