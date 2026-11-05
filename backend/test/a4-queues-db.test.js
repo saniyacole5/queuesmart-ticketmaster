@@ -27,8 +27,13 @@ test(
     // initialize a database connection or read a certificate.
     const { pool } = await import("../src/db/pool.js");
     const { createFixtures } = await import("./helpers/queue-fixtures.js");
-    const { listActiveEntriesByService, findActiveEntryForUser, joinQueue } =
-      await import("../src/repositories/queues.repo.js");
+    const {
+      listActiveEntriesByService,
+      findActiveEntryForUser,
+      joinQueue,
+      finishEntry,
+      serveNext,
+    } = await import("../src/repositories/queues.repo.js");
 
     const fixtures = createFixtures(pool);
 
@@ -200,6 +205,230 @@ test(
       } finally {
         await freshPool.end();
       }
+    });
+
+    // --- Task 4: leave, serve, remove ---------------------------------------
+
+    // Builds a service with `count` users already queued, newest last.
+    async function queued(label, count, options = {}) {
+      const service = await fixtures.makeService({ isOpen: true, ...options });
+      const entries = [];
+      for (let i = 0; i < count; i += 1) {
+        const user = await fixtures.makeUser(`${label}-${i}`);
+        entries.push({
+          user,
+          entry: await joinQueue({ userId: user.id, serviceId: service.id }),
+        });
+      }
+      return { service, entries };
+    }
+
+    await t.test("leaving soft-finishes the row and frees the user to rejoin", async () => {
+      const { service, entries } = await queued("leave", 1);
+      const { user, entry } = entries[0];
+
+      const result = await finishEntry({
+        entryId: entry.id,
+        outcome: "Left Queue",
+        actingUserId: user.id,
+      });
+      assert.equal(result.outcome, "Left Queue");
+
+      const [[row]] = await pool.query(
+        "SELECT status, ended_at, active_user_id FROM queue_entries WHERE id = ?",
+        [entry.id],
+      );
+      assert.equal(row.status, "left");
+      assert.notEqual(row.ended_at, null);
+      // The generated column releases the user for a new participation.
+      assert.equal(row.active_user_id, null);
+
+      const [[history]] = await pool.query(
+        "SELECT outcome, ended_at FROM history WHERE id = ?",
+        [entry.id],
+      );
+      assert.equal(history.outcome, "Left Queue");
+      assert.notEqual(history.ended_at, null);
+
+      const [[terminal]] = await pool.query(
+        "SELECT COUNT(*) c FROM notifications WHERE entry_id = ? AND event = 'Left Queue'",
+        [entry.id],
+      );
+      assert.equal(Number(terminal.c), 1);
+
+      // Rejoining is now permitted and starts a new participation.
+      const rejoined = await joinQueue({ userId: user.id, serviceId: service.id });
+      assert.notEqual(rejoined.id, entry.id);
+    });
+
+    await t.test("a user cannot leave another user's entry", async () => {
+      const { entries } = await queued("ownership", 2);
+      const victim = entries[0];
+      const attacker = entries[1];
+
+      await assert.rejects(
+        () =>
+          finishEntry({
+            entryId: victim.entry.id,
+            outcome: "Left Queue",
+            actingUserId: attacker.user.id,
+          }),
+        (error) => error.status === 403 && error.code === "FORBIDDEN",
+      );
+
+      const [[row]] = await pool.query(
+        "SELECT status FROM queue_entries WHERE id = ?",
+        [victim.entry.id],
+      );
+      assert.equal(row.status, "waiting");
+    });
+
+    await t.test("serve finishes the first ordered entry and promotes the rest", async () => {
+      const { service, entries } = await queued("serve", 3);
+
+      const served = await serveNext({ serviceId: service.id });
+      assert.equal(served.outcome, "Served");
+      assert.equal(served.id, entries[0].entry.id);
+
+      const remaining = await listActiveEntriesByService(service.id);
+      assert.deepEqual(
+        remaining.map((e) => [e.id, e.position]),
+        [
+          [entries[1].entry.id, 1],
+          [entries[2].entry.id, 2],
+        ],
+      );
+
+      const [[row]] = await pool.query(
+        "SELECT status FROM queue_entries WHERE id = ?",
+        [entries[0].entry.id],
+      );
+      assert.equal(row.status, "served");
+    });
+
+    await t.test("admin remove works on any entry", async () => {
+      const { entries } = await queued("remove", 1);
+      const admin = await fixtures.makeUser("remover", "admin");
+
+      const removed = await finishEntry({
+        entryId: entries[0].entry.id,
+        outcome: "Removed",
+        actingUserId: admin.id,
+        isAdmin: true,
+      });
+
+      assert.equal(removed.outcome, "Removed");
+      const [[row]] = await pool.query(
+        "SELECT status FROM queue_entries WHERE id = ?",
+        [entries[0].entry.id],
+      );
+      assert.equal(row.status, "removed");
+    });
+
+    await t.test("a non-admin cannot remove another user's entry", async () => {
+      const { entries } = await queued("no-remove", 2);
+
+      await assert.rejects(
+        () =>
+          finishEntry({
+            entryId: entries[0].entry.id,
+            outcome: "Removed",
+            actingUserId: entries[1].user.id,
+            isAdmin: false,
+          }),
+        (error) => error.status === 403 && error.code === "FORBIDDEN",
+      );
+
+      const [[row]] = await pool.query(
+        "SELECT status FROM queue_entries WHERE id = ?",
+        [entries[0].entry.id],
+      );
+      assert.equal(row.status, "waiting");
+    });
+
+    await t.test("concurrent serve and leave finish the entry exactly once", async () => {
+      const { service, entries } = await queued("race", 1);
+      const { user, entry } = entries[0];
+
+      const results = await Promise.allSettled([
+        serveNext({ serviceId: service.id }),
+        finishEntry({
+          entryId: entry.id,
+          outcome: "Left Queue",
+          actingUserId: user.id,
+        }),
+      ]);
+
+      assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+
+      const [[row]] = await pool.query(
+        "SELECT status FROM queue_entries WHERE id = ?",
+        [entry.id],
+      );
+      assert.notEqual(row.status, "waiting");
+
+      // One participation, one history row, one terminal outcome.
+      const [[history]] = await pool.query(
+        "SELECT COUNT(*) c FROM history WHERE id = ?",
+        [entry.id],
+      );
+      assert.equal(Number(history.c), 1);
+    });
+
+    // Review Focus 3
+    await t.test("finishing an already-terminal entry returns 404 and adds nothing", async () => {
+      const { entries } = await queued("double", 1);
+      const { user, entry } = entries[0];
+
+      await finishEntry({
+        entryId: entry.id,
+        outcome: "Left Queue",
+        actingUserId: user.id,
+      });
+
+      const [[before]] = await pool.query(
+        "SELECT COUNT(*) c FROM notifications WHERE entry_id = ?",
+        [entry.id],
+      );
+
+      await assert.rejects(
+        () =>
+          finishEntry({
+            entryId: entry.id,
+            outcome: "Left Queue",
+            actingUserId: user.id,
+          }),
+        (error) => error.status === 404 && error.code === "ENTRY_NOT_FOUND",
+      );
+
+      const [[after]] = await pool.query(
+        "SELECT COUNT(*) c FROM notifications WHERE entry_id = ?",
+        [entry.id],
+      );
+      assert.equal(Number(after.c), Number(before.c));
+    });
+
+    // Review Focus 5
+    await t.test("serving an empty queue returns 409", async () => {
+      const { service } = await queued("empty", 1);
+      await serveNext({ serviceId: service.id });
+
+      await assert.rejects(
+        () => serveNext({ serviceId: service.id }),
+        (error) => error.status === 409 && error.code === "QUEUE_EMPTY",
+      );
+    });
+
+    await t.test("serving a closed queue is refused", async () => {
+      const { service } = await queued("shut", 1);
+      await pool.execute("UPDATE queues SET status = 'closed' WHERE service_id = ?", [
+        service.id,
+      ]);
+
+      await assert.rejects(
+        () => serveNext({ serviceId: service.id }),
+        (error) => error.status === 409 && error.code === "QUEUE_CLOSED",
+      );
     });
   },
 );

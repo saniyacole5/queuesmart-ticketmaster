@@ -188,12 +188,120 @@ export async function joinQueue({ userId, serviceId }, connection = pool) {
     return ordered.find((entry) => entry.id === entryId);
   });
 }
-export async function finishEntry({ entryId, outcome, actingUserId, isAdmin }, connection = pool) {
-  // TODO Member 3: ownership/role checks and atomic terminal status update.
-  // Map outcomes: Served => served; Left Queue => left; Removed => removed.
-  // Update history + emit terminal notification in same transaction.
-  void entryId; void outcome; void actingUserId; void isAdmin; void connection;
-  throw new Error('A4_MEMBER_3_TODO: finishEntry');
+// Terminal rows are retained: history and notifications hold foreign keys
+// into queue_entries, so a finish is an UPDATE and never a DELETE.
+const TERMINAL_STATUS = {
+  'Served': 'served',
+  'Left Queue': 'left',
+  'Removed': 'removed',
+};
+
+// Re-reads the entry under FOR UPDATE and rejects anything already terminal.
+// This is what makes a concurrent serve and leave safe: the loser of the race
+// sees a finished row and 404s instead of finishing it a second time.
+async function lockWaitingEntry(connection, entryId) {
+  const [rows] = await connection.execute(
+    `SELECT e.id, e.user_id, e.queue_id, e.status, q.service_id, s.name
+     FROM queue_entries e
+     JOIN queues q ON q.id = e.queue_id
+     JOIN services s ON s.id = q.service_id
+     WHERE e.id = ?
+     FOR UPDATE`,
+    [entryId],
+  );
+
+  if (rows.length === 0 || rows[0].status !== 'waiting') {
+    fail(404, 'ENTRY_NOT_FOUND', 'Active queue entry not found.');
+  }
+
+  return rows[0];
+}
+
+async function finishLockedEntry(transaction, entry, outcome) {
+  const endedAt = new Date();
+
+  await transaction.execute(
+    'UPDATE queue_entries SET status = ?, ended_at = ? WHERE id = ?',
+    [TERMINAL_STATUS[outcome], endedAt, entry.id],
+  );
+  await transaction.execute(
+    'UPDATE history SET outcome = ?, ended_at = ? WHERE id = ?',
+    [outcome, endedAt, entry.id],
+  );
+  await emitNotification(transaction, {
+    userId: Number(entry.user_id),
+    entryId: Number(entry.id),
+    event: outcome,
+    message: `Queue participation in ${entry.name}: ${outcome}.`,
+  });
+
+  // Whoever moved into the threshold is told once; the unique index on
+  // (entry_id, event) makes a repeat for the same participation a no-op.
+  const ordered = await listActiveEntriesByService(entry.service_id, transaction);
+  await emitAlmostReady(transaction, ordered, entry.name);
+
+  return {
+    id: Number(entry.id),
+    userId: Number(entry.user_id),
+    serviceId: Number(entry.service_id),
+    serviceName: entry.name,
+    outcome,
+  };
+}
+
+export async function finishEntry(
+  { entryId, outcome, actingUserId, isAdmin = false },
+  connection = pool,
+) {
+  if (!Object.hasOwn(TERMINAL_STATUS, outcome)) {
+    fail(400, 'VALIDATION_ERROR', 'Unknown queue outcome.');
+  }
+
+  return runTransaction(connection, async (transaction) => {
+    // Resolve the service without locking, then take queues before
+    // queue_entries. Every mutation uses that order, so serveNext and a
+    // concurrent leave queue up behind each other instead of deadlocking.
+    const [owner] = await transaction.execute(
+      'SELECT q.service_id FROM queue_entries e JOIN queues q ON q.id = e.queue_id WHERE e.id = ?',
+      [entryId],
+    );
+    if (owner.length === 0) {
+      fail(404, 'ENTRY_NOT_FOUND', 'Active queue entry not found.');
+    }
+    await lockQueueForService(transaction, owner[0].service_id);
+
+    const entry = await lockWaitingEntry(transaction, entryId);
+
+    // Leaving is the owner's action; serving and removing are the admin's.
+    if (outcome === 'Left Queue') {
+      if (Number(entry.user_id) !== Number(actingUserId)) {
+        fail(403, 'FORBIDDEN', 'You can only leave your own queue.');
+      }
+    } else if (!isAdmin) {
+      fail(403, 'FORBIDDEN', 'Administrator access required.');
+    }
+
+    return finishLockedEntry(transaction, entry, outcome);
+  });
+}
+
+// Serving picks the first ordered entry, so the choice and the finish must
+// happen under one lock -- otherwise two admins can serve the same person.
+export async function serveNext({ serviceId }, connection = pool) {
+  return runTransaction(connection, async (transaction) => {
+    const queue = await lockQueueForService(transaction, serviceId);
+
+    if (queue.status === 'closed') {
+      fail(409, 'QUEUE_CLOSED', 'Reopen the queue before serving.');
+    }
+
+    const [next] = await listActiveEntriesByService(serviceId, transaction);
+    if (!next) fail(409, 'QUEUE_EMPTY', 'Nobody is waiting.');
+
+    const entry = await lockWaitingEntry(transaction, next.id);
+
+    return finishLockedEntry(transaction, entry, 'Served');
+  });
 }
 export async function adjustEntry({ entryId, priority, direction }, connection = pool) {
   // TODO Member 3: implement admin priority/move in serializable sequence.
