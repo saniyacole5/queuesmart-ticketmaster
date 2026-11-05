@@ -33,6 +33,7 @@ test(
       joinQueue,
       finishEntry,
       serveNext,
+      adjustEntry,
     } = await import("../src/repositories/queues.repo.js");
 
     const fixtures = createFixtures(pool);
@@ -190,14 +191,13 @@ test(
 
       const before = await listActiveEntriesByService(service.id);
 
-      // Simulate a restart: a brand new pool and module instance, sharing no
-      // in-process state with the ones that wrote the rows.
-      const stamp = Date.now();
-      const { pool: freshPool } = await import(`../src/db/pool.js?restart=${stamp}`);
-      const fresh = await import(`../src/repositories/queues.repo.js?restart=${stamp}`);
+      // Simulate a restart: a brand new pool, sharing no connection or cached
+      // state with the one that wrote these rows. The repository itself holds
+      // no in-process state, so a fresh pool is what the claim rests on.
+      const { pool: freshPool } = await import(`../src/db/pool.js?restart=${Date.now()}`);
 
       try {
-        const after = await fresh.listActiveEntriesByService(service.id, freshPool);
+        const after = await listActiveEntriesByService(service.id, freshPool);
         assert.deepEqual(
           after.map((e) => [e.id, e.position]),
           before.map((e) => [e.id, e.position]),
@@ -428,6 +428,121 @@ test(
       await assert.rejects(
         () => serveNext({ serviceId: service.id }),
         (error) => error.status === 409 && error.code === "QUEUE_CLOSED",
+      );
+    });
+
+    // --- Task 5: priority and move ------------------------------------------
+
+    await t.test("raising priority moves an entry above the standard tier", async () => {
+      const { service, entries } = await queued("tier", 3);
+      const promoted = entries[2].entry;
+
+      const ordered = await adjustEntry({
+        entryId: promoted.id,
+        priority: "priority",
+      });
+
+      assert.equal(ordered[0].id, promoted.id);
+      assert.equal(ordered[0].priority, "priority");
+      assert.deepEqual(
+        ordered.map((e) => e.id),
+        [promoted.id, entries[0].entry.id, entries[1].entry.id],
+      );
+
+      // The live read agrees with what the mutation returned.
+      const reread = await listActiveEntriesByService(service.id);
+      assert.deepEqual(reread.map((e) => e.id), ordered.map((e) => e.id));
+    });
+
+    await t.test("move swaps order within a tier", async () => {
+      const { service, entries } = await queued("swap", 3);
+      const [first, second] = [entries[0].entry, entries[1].entry];
+
+      const before = await pool.query(
+        "SELECT id, order_seq FROM queue_entries WHERE id IN (?, ?)",
+        [first.id, second.id],
+      );
+      const seq = Object.fromEntries(
+        before[0].map((r) => [Number(r.id), Number(r.order_seq)]),
+      );
+
+      const ordered = await adjustEntry({ entryId: second.id, direction: "up" });
+
+      assert.deepEqual(
+        ordered.map((e) => e.id),
+        [second.id, first.id, entries[2].entry.id],
+      );
+
+      const after = await pool.query(
+        "SELECT id, order_seq FROM queue_entries WHERE id IN (?, ?)",
+        [first.id, second.id],
+      );
+      const swapped = Object.fromEntries(
+        after[0].map((r) => [Number(r.id), Number(r.order_seq)]),
+      );
+      assert.equal(swapped[first.id], seq[second.id]);
+      assert.equal(swapped[second.id], seq[first.id]);
+
+      const reread = await listActiveEntriesByService(service.id);
+      assert.deepEqual(reread.map((e) => e.id), ordered.map((e) => e.id));
+    });
+
+    await t.test("move past an edge is refused", async () => {
+      const { entries } = await queued("edge", 2);
+
+      await assert.rejects(
+        () => adjustEntry({ entryId: entries[0].entry.id, direction: "up" }),
+        (error) => error.status === 409 && error.code === "MOVE_NOT_ALLOWED",
+      );
+      await assert.rejects(
+        () => adjustEntry({ entryId: entries[1].entry.id, direction: "down" }),
+        (error) => error.status === 409 && error.code === "MOVE_NOT_ALLOWED",
+      );
+    });
+
+    await t.test("move across a priority tier is refused", async () => {
+      const { entries } = await queued("cross", 2);
+      await adjustEntry({ entryId: entries[0].entry.id, priority: "priority" });
+
+      // entries[1] is now the only standard entry, sitting below the tier line.
+      await assert.rejects(
+        () => adjustEntry({ entryId: entries[1].entry.id, direction: "up" }),
+        (error) => error.status === 409 && error.code === "MOVE_NOT_ALLOWED",
+      );
+    });
+
+    await t.test("reordering back into the top two does not duplicate almost-ready", async () => {
+      const { entries } = await queued("threshold", 3);
+      const subject = entries[1].entry;
+
+      const countAlmostReady = async () => {
+        const [[row]] = await pool.query(
+          "SELECT COUNT(*) c FROM notifications WHERE entry_id = ? AND event = 'almost-ready'",
+          [subject.id],
+        );
+        return Number(row.c);
+      };
+
+      assert.equal(await countAlmostReady(), 1);
+
+      await adjustEntry({ entryId: subject.id, direction: "down" });
+      await adjustEntry({ entryId: subject.id, direction: "up" });
+
+      assert.equal(await countAlmostReady(), 1);
+    });
+
+    await t.test("adjusting a finished entry returns 404", async () => {
+      const { entries } = await queued("gone", 1);
+      const { user, entry } = entries[0];
+      await finishEntry({
+        entryId: entry.id,
+        outcome: "Left Queue",
+        actingUserId: user.id,
+      });
+
+      await assert.rejects(
+        () => adjustEntry({ entryId: entry.id, priority: "priority" }),
+        (error) => error.status === 404 && error.code === "ENTRY_NOT_FOUND",
       );
     });
   },

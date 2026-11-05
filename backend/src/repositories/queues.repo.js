@@ -8,7 +8,7 @@
 import { pool } from '../db/pool.js';
 import { withTransaction } from '../db/transaction.js';
 import { queueEntryRow } from '../db/mappers.js';
-import { decorateEntries, ALMOST_READY_LIMIT } from '../modules/queueView.js';
+import { decorateEntries, findMoveNeighbour, ALMOST_READY_LIMIT } from '../modules/queueView.js';
 import { fail } from '../shared/errors.js';
 export { pool, withTransaction, queueEntryRow };
 
@@ -303,9 +303,55 @@ export async function serveNext({ serviceId }, connection = pool) {
     return finishLockedEntry(transaction, entry, 'Served');
   });
 }
-export async function adjustEntry({ entryId, priority, direction }, connection = pool) {
-  // TODO Member 3: implement admin priority/move in serializable sequence.
-  // Moving may swap order_seq only within same priority tier/service.
-  void entryId; void priority; void direction; void connection;
-  throw new Error('A4_MEMBER_3_TODO: adjustEntry');
+// Admin reordering. Exactly one of `priority` or `direction` applies.
+// Returns the service's recalculated queue, matching the A3 move contract.
+export async function adjustEntry(
+  { entryId, priority, direction },
+  connection = pool,
+) {
+  return runTransaction(connection, async (transaction) => {
+    // Same queues-then-entries lock order as every other mutation.
+    const [owner] = await transaction.execute(
+      'SELECT q.service_id FROM queue_entries e JOIN queues q ON q.id = e.queue_id WHERE e.id = ?',
+      [entryId],
+    );
+    if (owner.length === 0) {
+      fail(404, 'ENTRY_NOT_FOUND', 'Active queue entry not found.');
+    }
+
+    const serviceId = owner[0].service_id;
+    const queue = await lockQueueForService(transaction, serviceId);
+    await lockWaitingEntry(transaction, entryId);
+
+    if (priority !== undefined) {
+      await transaction.execute(
+        'UPDATE queue_entries SET priority = ? WHERE id = ?',
+        [priority, entryId],
+      );
+    } else {
+      // Resolve the neighbour from the live order, so the swap can only ever
+      // exchange sequences inside one tier of one service.
+      const ordered = await listActiveEntriesByService(serviceId, transaction);
+      const subject = ordered.find((entry) => entry.id === Number(entryId));
+      const neighbour = findMoveNeighbour(ordered, Number(entryId), direction);
+
+      if (!neighbour) {
+        fail(409, 'MOVE_NOT_ALLOWED', 'Move only within the same priority tier.');
+      }
+
+      await transaction.execute(
+        'UPDATE queue_entries SET order_seq = ? WHERE id = ?',
+        [neighbour.order, subject.id],
+      );
+      await transaction.execute(
+        'UPDATE queue_entries SET order_seq = ? WHERE id = ?',
+        [subject.order, neighbour.id],
+      );
+    }
+
+    const ordered = await listActiveEntriesByService(serviceId, transaction);
+    await emitAlmostReady(transaction, ordered, queue.name);
+
+    return ordered;
+  });
 }
