@@ -12,6 +12,9 @@ export function createFixtures(pool) {
   const prefix = `QS-M3-${randomUUID()}`;
   const userIds = [];
   const serviceIds = [];
+  // Incremented synchronously, so concurrent makeService() calls cannot
+  // derive the same name from a not-yet-updated serviceIds.length.
+  let serviceCount = 0;
 
   async function makeUser(label, role = "user") {
     // These tests call repository functions directly and never authenticate,
@@ -39,7 +42,7 @@ export function createFixtures(pool) {
   }
 
   async function makeService({ isOpen = true, expectedDuration = 5 } = {}) {
-    const name = `${prefix}-svc-${serviceIds.length + 1}`;
+    const name = `${prefix}-svc-${++serviceCount}`;
 
     const [result] = await pool.execute(
       `INSERT INTO services (name, description, expected_duration, priority, is_open)
