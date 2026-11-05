@@ -99,11 +99,13 @@ export async function recordJoinActivity(
 // UNIQUE (entry_id, event) makes this idempotent: re-entering the threshold
 // after a reorder cannot produce a second almost-ready for the same entry.
 export async function emitNotification(connection, { userId, entryId, event, message }) {
+  // created_at is supplied for the same reason as queue_entries.joined_at:
+  // the SQL default would record server-local time, not UTC.
   await connection.execute(
-    `INSERT INTO notifications (user_id, entry_id, event, message, type)
-     VALUES (?, ?, ?, ?, 'info')
+    `INSERT INTO notifications (user_id, entry_id, event, message, type, created_at)
+     VALUES (?, ?, ?, ?, 'info', ?)
      ON DUPLICATE KEY UPDATE id = id`,
-    [userId, entryId, event, message],
+    [userId, entryId, event, message, new Date()],
   );
 }
 
@@ -155,9 +157,14 @@ export async function joinQueue({ userId, serviceId }, connection = pool) {
 
     let entryId;
     try {
+      // joined_at is supplied rather than left to DEFAULT CURRENT_TIMESTAMP:
+      // the server session runs in local time, so a SQL default would land in
+      // a different time frame than the JS Date used for ended_at, and every
+      // wait-time statistic computed from the pair would be off by the UTC
+      // offset. mysql2 stores this Date as UTC, matching timezone:'Z' on read.
       const [result] = await transaction.execute(
-        'INSERT INTO queue_entries (queue_id, user_id, order_seq) VALUES (?, ?, ?)',
-        [queue.queue_id, userId, next.order_seq],
+        'INSERT INTO queue_entries (queue_id, user_id, order_seq, joined_at) VALUES (?, ?, ?, ?)',
+        [queue.queue_id, userId, next.order_seq, new Date()],
       );
       entryId = Number(result.insertId);
     } catch (error) {

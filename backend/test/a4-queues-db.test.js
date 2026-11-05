@@ -531,6 +531,40 @@ test(
       assert.equal(await countAlmostReady(), 1);
     });
 
+    await t.test("timestamps are UTC, so elapsed wait time is real", async () => {
+      // joined_at came from a SQL DEFAULT (server local time) while ended_at
+      // came from a JS Date (UTC), putting two time frames in one row and
+      // making every wait-time statistic wrong by the UTC offset.
+      const { service, entries } = await queued("clock", 1);
+      const joinedAt = Date.now();
+
+      const [live] = await listActiveEntriesByService(service.id);
+      assert.ok(
+        Math.abs(new Date(live.joinedAt).getTime() - joinedAt) < 60_000,
+        `joinedAt ${live.joinedAt} is not close to now`,
+      );
+
+      await serveNext({ serviceId: service.id });
+
+      const [[row]] = await pool.query(
+        "SELECT TIMESTAMPDIFF(SECOND, joined_at, ended_at) AS waited FROM history WHERE id = ?",
+        [entries[0].entry.id],
+      );
+      assert.ok(
+        Number(row.waited) >= 0 && Number(row.waited) < 60,
+        `history wait of ${row.waited}s is not a real elapsed time`,
+      );
+
+      const [[note]] = await pool.query(
+        "SELECT created_at FROM notifications WHERE entry_id = ? LIMIT 1",
+        [entries[0].entry.id],
+      );
+      assert.ok(
+        Math.abs(new Date(note.created_at).getTime() - joinedAt) < 60_000,
+        `notification created_at ${note.created_at} is not close to now`,
+      );
+    });
+
     await t.test("adjusting a finished entry returns 404", async () => {
       const { entries } = await queued("gone", 1);
       const { user, entry } = entries[0];
