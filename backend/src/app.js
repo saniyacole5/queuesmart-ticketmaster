@@ -4,6 +4,7 @@ import { createAuth, requireRole } from './modules/auth.js';
 import { createSqlAuth } from './modules/authSql.js';
 import * as usersRepository from './repositories/users.repo.js';
 import * as servicesRepository from './repositories/services.repo.js';
+import * as queuesRepository from './repositories/queues.repo.js';
 import { createServices } from './modules/services.js';
 import { createQueues } from './modules/queues.js';
 import { createNotifications } from './modules/notifications.js';
@@ -33,9 +34,24 @@ export function createApp(options = {}) {
       ? (options.servicesRepository ?? servicesRepository)
       : null,
   );
+  const queueStorage = options.queueStorage ?? 'memory';
+  if (!['memory', 'mysql'].includes(queueStorage)) {
+    throw new Error('Invalid QUEUE_STORAGE. Use mysql or memory.');
+  }
+  if (queueStorage === 'mysql' && servicesStorage !== 'mysql') {
+    throw new Error('SQL queues require SERVICES_STORAGE=mysql.');
+  }
   const notifications = createNotifications(store, options.clock);
   const history = createHistory(store, options.clock);
-  const queues = createQueues(store, notifications, history, options.clock);
+  const queues = createQueues(
+    store,
+    notifications,
+    history,
+    options.clock,
+    queueStorage === 'mysql'
+      ? (options.queuesRepository ?? queuesRepository)
+      : null,
+  );
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '16kb' }));
@@ -49,7 +65,11 @@ export function createApp(options = {}) {
         : 'in-memory',
     authStorage: authStorage === 'mysql' ? 'mysql' : 'in-memory',
     servicesStorage: servicesStorage === 'mysql' ? 'mysql' : 'in-memory',
-    queueStorage: servicesStorage === 'mysql' ? 'disabled' : 'in-memory',
+    queueStorage: queueStorage === 'mysql'
+      ? 'mysql'
+      : servicesStorage === 'mysql'
+        ? 'disabled'
+        : 'in-memory',
   }));
   app.post('/api/auth/register', async (req, res) => ok(res, await auth.register(req.body), 201));
   app.post('/api/auth/login', async (req, res) => ok(res, await auth.login(req.body)));
@@ -99,14 +119,23 @@ export function createApp(options = {}) {
   const stateRequest =
     req.method === 'GET' && req.path === '/state';
 
-  if (serviceRequest || stateRequest) {
+  // Member 3: queue routes leave the refusal list once they are SQL-backed.
+  const queueRequest =
+    queueStorage === 'mysql' && (
+      req.path === '/queues/me' ||
+      /^\/services\/[^/]+\/(queue|serve-next)$/.test(req.path) ||
+      /^\/queue-entries\/[^/]+$/.test(req.path) ||
+      /^\/admin\/queue-entries\/[^/]+(\/(priority|move))?$/.test(req.path)
+    );
+
+  if (serviceRequest || stateRequest || queueRequest) {
     return next();
   }
 
   fail(
     503,
     'FEATURE_NOT_READY',
-    'Only authentication and services are available in SQL service-testing mode.',
+    'Only authentication, services and queues are available in SQL mode.',
   );
 });
 
@@ -134,16 +163,18 @@ export function createApp(options = {}) {
   app.patch('/api/services/:id', admin, async (req, res) => {
     ok(res, await services.update(id(req.params.id), req.body));
   });
-  app.get('/api/queues/me', user, (req, res) => ok(res, queues.mine(req.user.id)));
-  app.get('/api/services/:id/queue', admin, (req, res) => ok(res, queues.snapshot(id(req.params.id))));
-  app.post('/api/services/:id/queue', user, (req, res) => ok(res, queues.join(req.user, id(req.params.id), req.body), 201));
-  app.delete('/api/queue-entries/:id', user, (req, res) => ok(res, queues.leave(req.user, id(req.params.id))));
-  app.post('/api/services/:id/serve-next', admin, (req, res) => {
-    object(req.body, []); ok(res, queues.serve(id(req.params.id)));
+  // Awaited so the SQL repository's Promises resolve before responding.
+  // In memory mode these methods are synchronous and await is a no-op.
+  app.get('/api/queues/me', user, async (req, res) => ok(res, await queues.mine(req.user.id)));
+  app.get('/api/services/:id/queue', admin, async (req, res) => ok(res, await queues.snapshot(id(req.params.id))));
+  app.post('/api/services/:id/queue', user, async (req, res) => ok(res, await queues.join(req.user, id(req.params.id), req.body), 201));
+  app.delete('/api/queue-entries/:id', user, async (req, res) => ok(res, await queues.leave(req.user, id(req.params.id))));
+  app.post('/api/services/:id/serve-next', admin, async (req, res) => {
+    object(req.body, []); ok(res, await queues.serve(id(req.params.id)));
   });
-  app.delete('/api/admin/queue-entries/:id', admin, (req, res) => ok(res, queues.remove(id(req.params.id))));
-  app.patch('/api/admin/queue-entries/:id/priority', admin, (req, res) => ok(res, queues.priority(id(req.params.id), req.body)));
-  app.post('/api/admin/queue-entries/:id/move', admin, (req, res) => ok(res, queues.move(id(req.params.id), req.body)));
+  app.delete('/api/admin/queue-entries/:id', admin, async (req, res) => ok(res, await queues.remove(id(req.params.id))));
+  app.patch('/api/admin/queue-entries/:id/priority', admin, async (req, res) => ok(res, await queues.priority(id(req.params.id), req.body)));
+  app.post('/api/admin/queue-entries/:id/move', admin, async (req, res) => ok(res, await queues.move(id(req.params.id), req.body)));
   app.get('/api/notifications', (req, res) => ok(res, notifications.list(req.user.id)));
   app.patch('/api/notifications/:id/read', (req, res) => {
     object(req.body, []); ok(res, notifications.markRead(req.user.id, id(req.params.id)));
@@ -151,6 +182,24 @@ export function createApp(options = {}) {
   app.get('/api/history', user, (req, res) => ok(res, history.list(req.user.id)));
   app.get('/api/state', async (req, res) => {
     const serviceList = await serviceViews();
+
+    if (queueStorage === 'mysql') {
+      // Queue data is SQL-backed. History is Member 4's deliverable and stays
+      // empty until their routes land -- the gap is a deliberate seam, not a
+      // bug to patch by reading the table directly here.
+      return ok(res, {
+        services: serviceList,
+        queueEntries: req.user.role === 'admin'
+          ? (await Promise.all(
+              serviceList.map((service) => queues.snapshot(service.id)),
+            )).flat()
+          : [],
+        currentQueue: req.user.role === 'user'
+          ? await queues.mine(req.user.id)
+          : null,
+        history: [],
+      });
+    }
 
     if (servicesStorage === 'mysql') {
       // Temp placeholders for the service-screen preview.
