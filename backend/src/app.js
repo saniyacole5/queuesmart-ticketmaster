@@ -4,6 +4,7 @@ import { createAuth, requireRole } from './modules/auth.js';
 import { createSqlAuth } from './modules/authSql.js';
 import * as usersRepository from './repositories/users.repo.js';
 import * as servicesRepository from './repositories/services.repo.js';
+import * as queuesRepository from './repositories/queues.repo.js';
 import * as activityRepository from './repositories/activity.repo.js';
 import { createServices } from './modules/services.js';
 import { createQueues } from './modules/queues.js';
@@ -22,6 +23,7 @@ export function createApp(options = {}) {
 
   const authStorage = options.authStorage ?? 'memory';
   const servicesStorage = options.servicesStorage ?? 'memory';
+  const queueStorage = options.queueStorage ?? 'memory';
   const activityStorage = options.activityStorage ?? 'memory';
 
   if (!['memory', 'mysql'].includes(authStorage)) {
@@ -32,12 +34,20 @@ export function createApp(options = {}) {
     throw new Error('Invalid SERVICES_STORAGE. Use mysql or memory.');
   }
 
+  if (!['memory', 'mysql'].includes(queueStorage)) {
+    throw new Error('Invalid QUEUE_STORAGE. Use mysql or memory.');
+  }
+
   if (!['memory', 'mysql'].includes(activityStorage)) {
     throw new Error('Invalid ACTIVITY_STORAGE. Use mysql or memory.');
   }
 
   if (servicesStorage === 'mysql' && authStorage !== 'mysql') {
     throw new Error('SQL services require AUTH_STORAGE=mysql.');
+  }
+
+  if (queueStorage === 'mysql' && servicesStorage !== 'mysql') {
+    throw new Error('SQL queues require SERVICES_STORAGE=mysql.');
   }
 
   if (
@@ -75,13 +85,16 @@ export function createApp(options = {}) {
 
   const queueActivity = createQueueActivity(history, notifications);
 
-  // SQL queue integration is pending. The guard below blocks these
-  // memory-based queue routes whenever SQL services are selected.
+  // Preserve the A3 memory mode and select Member 3's SQL queue repository
+  // when QUEUE_STORAGE=mysql. SQL activity writes share its transaction.
   const queues = createQueues(
     store,
     notifications,
     history,
     options.clock,
+    queueStorage === 'mysql'
+      ? (options.queuesRepository ?? queuesRepository)
+      : null,
   );
 
   const app = express();
@@ -95,14 +108,22 @@ export function createApp(options = {}) {
     ok(res, {
       status: 'ok',
       storage:
-        authStorage === 'mysql' || servicesStorage === 'mysql'
-          ? 'mixed'
-          : 'in-memory',
+        [authStorage, servicesStorage, queueStorage, activityStorage]
+          .every((mode) => mode === 'mysql')
+          ? 'mysql'
+          : [authStorage, servicesStorage, queueStorage, activityStorage]
+              .some((mode) => mode === 'mysql')
+            ? 'mixed'
+            : 'in-memory',
       authStorage: authStorage === 'mysql' ? 'mysql' : 'in-memory',
       servicesStorage:
         servicesStorage === 'mysql' ? 'mysql' : 'in-memory',
       queueStorage:
-        servicesStorage === 'mysql' ? 'disabled' : 'in-memory',
+        queueStorage === 'mysql'
+          ? 'mysql'
+          : servicesStorage === 'mysql'
+            ? 'disabled'
+            : 'in-memory',
       activityStorage:
         activityStorage === 'mysql' ? 'mysql' : 'in-memory',
     });
@@ -147,9 +168,12 @@ export function createApp(options = {}) {
     ok(res, { loggedOut: true });
   });
 
-  // Allow completed SQL features while queue integration is pending.
+  // Enable each SQL feature only when its storage mode is selected.
   app.use('/api', (req, res, next) => {
-    if (servicesStorage !== 'mysql') {
+    if (
+      servicesStorage !== 'mysql' ||
+      (queueStorage === 'mysql' && activityStorage === 'mysql')
+    ) {
       return next();
     }
 
@@ -164,6 +188,15 @@ export function createApp(options = {}) {
     const stateRequest =
       req.method === 'GET' && req.path === '/state';
 
+    const queueRequest =
+      queueStorage === 'mysql' &&
+      (
+        req.path === '/queues/me' ||
+        /^\/services\/[^/]+\/(queue|serve-next)$/.test(req.path) ||
+        /^\/queue-entries\/[^/]+$/.test(req.path) ||
+        /^\/admin\/queue-entries\/[^/]+(\/(priority|move))?$/.test(req.path)
+      );
+
     const activityRequest =
       activityStorage === 'mysql' &&
       (
@@ -177,14 +210,14 @@ export function createApp(options = {}) {
         )
       );
 
-    if (serviceRequest || stateRequest || activityRequest) {
+    if (serviceRequest || stateRequest || queueRequest || activityRequest) {
       return next();
     }
 
     fail(
       503,
       'FEATURE_NOT_READY',
-      'SQL queue actions are awaiting integration. Authentication, services and configured activity routes are available.',
+      'This feature is unavailable for the selected storage configuration.',
     );
   });
 
@@ -217,49 +250,49 @@ export function createApp(options = {}) {
     ok(res, await services.update(id(req.params.id), req.body));
   });
 
-  // Existing A3 queue routes; blocked in SQL service mode.
-  app.get('/api/queues/me', user, (req, res) => {
-    ok(res, queues.mine(req.user.id));
+  // Await both the SQL methods and the original synchronous memory methods.
+  app.get('/api/queues/me', user, async (req, res) => {
+    ok(res, await queues.mine(req.user.id));
   });
 
-  app.get('/api/services/:id/queue', admin, (req, res) => {
-    ok(res, queues.snapshot(id(req.params.id)));
+  app.get('/api/services/:id/queue', admin, async (req, res) => {
+    ok(res, await queues.snapshot(id(req.params.id)));
   });
 
-  app.post('/api/services/:id/queue', user, (req, res) => {
+  app.post('/api/services/:id/queue', user, async (req, res) => {
     ok(
       res,
-      queues.join(req.user, id(req.params.id), req.body),
+      await queues.join(req.user, id(req.params.id), req.body),
       201,
     );
   });
 
-  app.delete('/api/queue-entries/:id', user, (req, res) => {
-    ok(res, queues.leave(req.user, id(req.params.id)));
+  app.delete('/api/queue-entries/:id', user, async (req, res) => {
+    ok(res, await queues.leave(req.user, id(req.params.id)));
   });
 
-  app.post('/api/services/:id/serve-next', admin, (req, res) => {
+  app.post('/api/services/:id/serve-next', admin, async (req, res) => {
     object(req.body, []);
-    ok(res, queues.serve(id(req.params.id)));
+    ok(res, await queues.serve(id(req.params.id)));
   });
 
-  app.delete('/api/admin/queue-entries/:id', admin, (req, res) => {
-    ok(res, queues.remove(id(req.params.id)));
+  app.delete('/api/admin/queue-entries/:id', admin, async (req, res) => {
+    ok(res, await queues.remove(id(req.params.id)));
   });
 
   app.patch(
     '/api/admin/queue-entries/:id/priority',
     admin,
-    (req, res) => {
-      ok(res, queues.priority(id(req.params.id), req.body));
+    async (req, res) => {
+      ok(res, await queues.priority(id(req.params.id), req.body));
     },
   );
 
   app.post(
     '/api/admin/queue-entries/:id/move',
     admin,
-    (req, res) => {
-      ok(res, queues.move(id(req.params.id), req.body));
+    async (req, res) => {
+      ok(res, await queues.move(id(req.params.id), req.body));
     },
   );
 
@@ -284,17 +317,35 @@ export function createApp(options = {}) {
 
   app.get('/api/state', async (req, res) => {
     const serviceList = await serviceViews();
+    const ownHistory =
+      req.user.role === 'user' &&
+      (servicesStorage !== 'mysql' || activityStorage === 'mysql')
+        ? await history.list(req.user.id)
+        : [];
+
+    if (queueStorage === 'mysql') {
+      return ok(res, {
+        services: serviceList,
+        queueEntries:
+          req.user.role === 'admin'
+            ? (await Promise.all(
+                serviceList.map((service) => queues.snapshot(service.id)),
+              )).flat()
+            : [],
+        currentQueue:
+          req.user.role === 'user'
+            ? await queues.mine(req.user.id)
+            : null,
+        history: ownHistory,
+      });
+    }
 
     if (servicesStorage === 'mysql') {
-      // Queue reads remain pending Member 3's SQL integration.
       return ok(res, {
         services: serviceList,
         queueEntries: [],
         currentQueue: null,
-        history:
-          activityStorage === 'mysql' && req.user.role === 'user'
-            ? await history.list(req.user.id)
-            : [],
+        history: ownHistory,
       });
     }
 
@@ -302,18 +353,11 @@ export function createApp(options = {}) {
       services: serviceList,
       queueEntries:
         req.user.role === 'admin'
-          ? serviceList.flatMap((service) =>
-              queues.snapshot(service.id),
-            )
+          ? serviceList.flatMap((service) => queues.snapshot(service.id))
           : [],
       currentQueue:
-        req.user.role === 'user'
-          ? queues.mine(req.user.id)
-          : null,
-      history:
-        req.user.role === 'user'
-          ? await history.list(req.user.id)
-          : [],
+        req.user.role === 'user' ? await queues.mine(req.user.id) : null,
+      history: ownHistory,
     });
   });
 

@@ -17,7 +17,7 @@ export function createSqlHistory(
           connection,
         );
       },
-  
+
       finish(entry, outcome, connection) {
         return repository.completeHistory(
           {
@@ -28,13 +28,13 @@ export function createSqlHistory(
           connection,
         );
       },
-  
+
       list(userId) {
         return repository.listHistoryForUser(userId);
       },
     };
   }
-  
+
   export function createSqlNotifications(repository) {
     function emit(
       userId,
@@ -48,14 +48,14 @@ export function createSqlHistory(
         connection,
       );
     }
-  
+
     return {
       emit,
-  
+
       async close(ordered, service, connection) {
         // "Close" means close to being served: positions 1 and 2.
         const sent = [];
-  
+
         for (const entry of ordered.slice(0, 2)) {
           const notification = await emit(
             entry.userId,
@@ -64,23 +64,23 @@ export function createSqlHistory(
             `You are close to being served in ${service.name}.`,
             connection,
           );
-  
+
           sent.push(notification);
         }
-  
+
         return sent;
       },
-  
+
       list(userId) {
         return repository.listNotificationsForUser(userId);
       },
-  
+
       markRead(userId, id) {
         return repository.markNotificationRead({ id, userId });
       },
     };
   }
-  
+
   // Call these helpers inside the queue's existing transaction.
   // The caller controls commit and rollback.
   export function createQueueActivity(history, notifications) {
@@ -95,20 +95,20 @@ export function createSqlHistory(
         );
       }
     }
-  
+
     return {
       async joined(
         { entry, service, ordered },
         connection,
       ) {
         requireTransaction(connection);
-  
+
         const record = await history.joined(
           entry,
           service,
           connection,
         );
-  
+
         await notifications.emit(
           entry.userId,
           entry.id,
@@ -116,28 +116,28 @@ export function createSqlHistory(
           `You joined ${service.name}.`,
           connection,
         );
-  
+
         await notifications.close(
           ordered,
           service,
           connection,
         );
-  
+
         return record;
       },
-  
+
       async finished(
         { entry, service, outcome, ordered },
         connection,
       ) {
         requireTransaction(connection);
-  
+
         const record = await history.finish(
           entry,
           outcome,
           connection,
         );
-  
+
         await notifications.emit(
           entry.userId,
           entry.id,
@@ -145,13 +145,13 @@ export function createSqlHistory(
           `Queue participation in ${service.name}: ${outcome}.`,
           connection,
         );
-  
+
         await notifications.close(
           ordered,
           service,
           connection,
         );
-  
+
         return record;
       },
     };

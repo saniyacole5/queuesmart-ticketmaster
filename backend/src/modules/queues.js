@@ -8,7 +8,70 @@ export function createQueues(
   notifications,
   history,
   clock = () => new Date().toISOString(),
+  repository = null,
 ) {
+  // Validation lives here in both modes, so a rejected request never reaches
+  // the database. Identity and priority always come from server policy.
+  function joinBody(body) {
+    v.object(body, []);
+  }
+  function priorityValue(body) {
+    v.object(body, ["priority"]);
+    return v.choice(body, "priority", ["standard", "priority"]);
+  }
+  function directionValue(body) {
+    v.object(body, ["direction"]);
+    return v.choice(body, "direction", ["up", "down"]);
+  }
+
+  // Use the SQL repository when supplied by the integration owner.
+  if (repository !== null) {
+    return {
+      snapshot: (serviceId) => repository.listActiveEntriesByService(serviceId),
+
+      mine: (userId) => repository.findActiveEntryForUser(userId),
+
+      // Validating methods are async so a rejected body surfaces as a
+      // rejected promise, not a synchronous throw past the route's await.
+      async join(user, serviceId, body) {
+        joinBody(body);
+        return repository.joinQueue({ userId: user.id, serviceId });
+      },
+
+      leave(user, id) {
+        return repository.finishEntry({
+          entryId: id,
+          outcome: "Left Queue",
+          actingUserId: user.id,
+        });
+      },
+
+      serve: (serviceId) => repository.serveNext({ serviceId }),
+
+      // Routed behind the admin middleware in app.js.
+      remove: (id) =>
+        repository.finishEntry({
+          entryId: id,
+          outcome: "Removed",
+          isAdmin: true,
+        }),
+
+      async priority(id, body) {
+        return repository.adjustEntry({
+          entryId: id,
+          priority: priorityValue(body),
+        });
+      },
+
+      async move(id, body) {
+        return repository.adjustEntry({
+          entryId: id,
+          direction: directionValue(body),
+        });
+      },
+    };
+  }
+
   function ordered(serviceId) {
     return orderEntries(store.entries.filter((e) => e.serviceId === serviceId));
   }
@@ -51,7 +114,7 @@ export function createQueues(
         : null;
     },
     join(user, serviceId, body) {
-      v.object(body, []); // Identity and priority always come from server policy.
+      joinBody(body);
       const service = getService(store, serviceId);
       if (!service.isOpen) fail(409, "QUEUE_CLOSED", "This queue is closed.");
       // Keep the duplicate check and insertion synchronous: concurrent HTTP joins
@@ -96,16 +159,14 @@ export function createQueues(
       return finish(find(id), "Removed");
     },
     priority(id, body) {
-      v.object(body, ["priority"]);
-      const value = v.choice(body, "priority", ["standard", "priority"]);
+      const value = priorityValue(body);
       const entry = find(id);
       entry.priority = value;
       close(entry.serviceId);
       return snapshot(entry.serviceId).find((e) => e.id === id);
     },
     move(id, body) {
-      v.object(body, ["direction"]);
-      const direction = v.choice(body, "direction", ["up", "down"]);
+      const direction = directionValue(body);
       const entry = find(id),
         items = ordered(entry.serviceId),
         index = items.findIndex((e) => e.id === id);

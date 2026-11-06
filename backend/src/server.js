@@ -6,6 +6,7 @@ const minutes = Number(process.env.SESSION_TTL_MINUTES || 60);
 
 const authStorage = process.env.AUTH_STORAGE || 'memory';
 const servicesStorage = process.env.SERVICES_STORAGE || 'memory';
+const queueStorage = process.env.QUEUE_STORAGE || 'memory';
 const activityStorage = process.env.ACTIVITY_STORAGE || 'memory';
 
 if (
@@ -16,15 +17,24 @@ if (
   minutes <= 0 ||
   !['memory', 'mysql'].includes(authStorage) ||
   !['memory', 'mysql'].includes(servicesStorage) ||
+  !['memory', 'mysql'].includes(queueStorage) ||
   !['memory', 'mysql'].includes(activityStorage)
 ) {
   throw new Error(
-    'Invalid PORT, SESSION_TTL_MINUTES, AUTH_STORAGE, SERVICES_STORAGE or ACTIVITY_STORAGE.',
+    'Invalid PORT, SESSION_TTL_MINUTES, AUTH_STORAGE, SERVICES_STORAGE, QUEUE_STORAGE or ACTIVITY_STORAGE.',
   );
 }
 
 if (servicesStorage === 'mysql' && authStorage !== 'mysql') {
   throw new Error('SQL services require AUTH_STORAGE=mysql.');
+}
+
+if (queueStorage === 'mysql' && servicesStorage !== 'mysql') {
+  throw new Error('SQL queues require SERVICES_STORAGE=mysql.');
+}
+
+if (activityStorage === 'mysql' && (authStorage !== 'mysql' || servicesStorage !== 'mysql')) {
+  throw new Error('SQL activity requires AUTH_STORAGE=mysql and SERVICES_STORAGE=mysql.');
 }
 
 try {
@@ -49,6 +59,7 @@ try {
     ttl: minutes * 60000,
     authStorage,
     servicesStorage,
+    queueStorage,
     activityStorage,
   });
 
@@ -82,9 +93,11 @@ try {
     );
 
     console.log(
-      servicesStorage === 'mysql'
-        ? '[Queue] Disabled pending Member 3 SQL integration'
-        : '[Queue] In-memory',
+      queueStorage === 'mysql'
+        ? '[Queue] MySQL (persistent)'
+        : servicesStorage === 'mysql'
+          ? '[Queue] Disabled for the selected storage configuration'
+          : '[Queue] In-memory',
     );
   });
 } catch (error) {

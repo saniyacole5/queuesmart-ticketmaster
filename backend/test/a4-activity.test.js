@@ -575,7 +575,7 @@ test('SQL activity HTTP routes await repositories and enforce identity, roles an
     true,
   );
 
-  // Unfinished SQL queue actions remain blocked.
+  // Queue actions require QUEUE_STORAGE=mysql.
   assert.equal(
     (
       await call(
