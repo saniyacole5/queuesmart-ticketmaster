@@ -55,6 +55,33 @@ frontend on Vite, two isolated browser sessions (one admin, one user).
 Screenshots: `docs/evidence/a4-member3-queue-management.png`,
 `docs/evidence/a4-member3-queue-status.png`.
 
+## Evidence from the shared Aiven database
+
+The pass above ran locally. The same queue actions were then performed through
+the React UI against the **shared Aiven `queuesmart_db`**, and captured in MySQL
+Workbench. Two users registered and joined "A4 Test", the administrator promoted
+one to Priority, then served the queue.
+
+| Screenshot | Shows |
+| --- | --- |
+| `a4-member3-aiven-queue-entries.png` | `user1` waiting at `order_seq` 1; `user2` promoted to `priority` and `served` with `ended_at` set. The served row is **retained**, not deleted. |
+| `a4-member3-aiven-queue-entries-after-restart.png` | The same query after the backend was killed and restarted — identical rows. Its Action Output shows both runs (18:05:38 and 18:18:06) with the restart between them. |
+| `a4-member3-aiven-history.png` | One history row per participation; the served one records `waited_seconds = 267`, a real elapsed wait. |
+| `a4-member3-aiven-notifications.png` | `joined` + `almost-ready` per entry, plus `Served` on the terminal one — exactly one `almost-ready` each. |
+| `a4-member3-aiven-foreign-keys.png` | All 10 foreign keys across the 8 tables, including `history.id` and `notifications.entry_id` into `queue_entries` — the constraints that make soft finishes necessary. |
+| `a4-member3-coverage.txt` | Full coverage table: **98.43% lines, 99.49% functions**, 149 tests passing. |
+
+Priority is visible in the data: `user2` joined *second* (`order_seq` 2) but was
+served first, because promotion to the priority tier reordered the queue.
+
+One row reads `outcome = 'Waiting'` because that participant was still queued
+when the screenshot was taken. History is written at join and updated at the
+terminal action, so an in-progress participation legitimately reads `Waiting`.
+
+Service 1 was opened with a direct SQL `UPDATE` because the queue had no open
+service and the administrator password was not yet available. Reversible with
+`UPDATE services SET is_open = 0 WHERE id = 1;` plus the matching `queues` row.
+
 ## Database state after the pass
 
 ```

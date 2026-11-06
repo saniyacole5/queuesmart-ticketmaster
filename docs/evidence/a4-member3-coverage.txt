@@ -1,0 +1,42 @@
+QueueSmart A4 — backend test coverage
+Generated: 2026-11-05 18:15 CST
+Command:   npm run coverage:db   (MySQL integration tests enabled)
+Node:      v22.18.0 locally (package.json declares >=24; CI runs 24 — all 149 tests pass on both)
+
+start of coverage report
+--------------------------------------------------------------------------------------------
+file               | line % | branch % | funcs % | uncovered lines
+--------------------------------------------------------------------------------------------
+src                |        |          |         | 
+ app.js            |  98.26 |    94.81 |  100.00 | 26-27 29-30
+ db                |        |          |         | 
+  mappers.js       | 100.00 |    64.29 |  100.00 | 
+  pool.js          | 100.00 |    25.00 |  100.00 | 
+  transaction.js   | 100.00 |    66.67 |  100.00 | 
+ modules           |        |          |         | 
+  auth.js          | 100.00 |   100.00 |  100.00 | 
+  authSql.js       | 100.00 |    93.94 |  100.00 | 
+  history.js       | 100.00 |   100.00 |  100.00 | 
+  notifications.js | 100.00 |   100.00 |  100.00 | 
+  queues.js        | 100.00 |   100.00 |  100.00 | 
+  queueView.js     | 100.00 |    92.86 |  100.00 | 
+  services.js      | 100.00 |   100.00 |  100.00 | 
+  waitTime.js      | 100.00 |   100.00 |  100.00 | 
+ repositories      |        |          |         | 
+  queues.repo.js   |  96.70 |    89.09 |   95.24 | 22 69-71 176-177 264-265 276-277 326-327
+  services.repo.js |  94.48 |    82.86 |  100.00 | 39-40 56-58 111-112 142-143
+  users.repo.js    |  98.08 |    76.19 |  100.00 | 46-47
+ shared            |        |          |         | 
+  errors.js        | 100.00 |    78.95 |  100.00 | 
+  validation.js    | 100.00 |    97.67 |  100.00 | 
+ store.js          | 100.00 |   100.00 |  100.00 | 
+--------------------------------------------------------------------------------------------
+all files          |  98.43 |    91.80 |   99.49 | 
+--------------------------------------------------------------------------------------------
+end of coverage report
+
+tests 149
+pass 149
+fail 0
+skipped 0
+duration_ms 3416.390083
