@@ -1,10 +1,13 @@
 name: Assignment 4 checks
+
 on:
   push:
   pull_request:
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+
     services:
       mysql:
         image: mysql:8.4
@@ -20,6 +23,7 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=12
+
     env:
       DB_HOST: 127.0.0.1
       DB_PORT: '3306'
@@ -28,8 +32,10 @@ jobs:
       DB_NAME: queuesmart_db
       DB_SSL_CA_PATH: ''
       QUEUESMART_DB_TESTS: '1'
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -37,8 +43,11 @@ jobs:
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
-      - run: npm ci
+
+      - name: Install backend dependencies
+        run: npm ci
         working-directory: backend
+
       - name: Create test database tables
         env:
           MYSQL_CONTAINER_ID: ${{ job.services.mysql.id }}
@@ -48,18 +57,35 @@ jobs:
             "$MYSQL_CONTAINER_ID" \
             mysql -uroot queuesmart_db \
             < backend/sql/001_schema.sql
-      - run: npm run db:check
+
+      - name: Verify test database
+        run: npm run db:check
         working-directory: backend
-      - run: npm run coverage > coverage-report.txt 2>&1
+
+      - name: Run backend tests and coverage
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run coverage 2>&1 | tee coverage-report.txt
         working-directory: backend
-      - uses: actions/upload-artifact@v4
+
+      - name: Save coverage and schema evidence
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: backend-coverage
-          path: backend/coverage-report.txt
-      - run: npm ci
+          path: |
+            backend/coverage-report.txt
+            backend/sql/001_schema.sql
+
+      - name: Install frontend dependencies
+        run: npm ci
         working-directory: frontend
-      - run: npm run lint
+
+      - name: Check frontend lint
+        run: npm run lint
         working-directory: frontend
-      - run: npm run build
+
+      - name: Build frontend
+        run: npm run build
         working-directory: frontend
