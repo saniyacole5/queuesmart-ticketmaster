@@ -31,6 +31,7 @@ export default function HistoryPage() {
               <thead>
                 <tr>
                   <th>Joined</th>
+                  <th>Completed</th>
                   <th>Service</th>
                   <th>Outcome</th>
                 </tr>
@@ -43,6 +44,14 @@ export default function HistoryPage() {
                       {new Date(
                         record.joinedAt,
                       ).toLocaleString()}
+                    </td>
+
+                    <td>
+                      {record.endedAt
+                        ? new Date(
+                            record.endedAt,
+                          ).toLocaleString()
+                        : "-"}
                     </td>
 
                     <td>{record.serviceName}</td>

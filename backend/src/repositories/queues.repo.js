@@ -3,13 +3,14 @@
  * Query active rows WHERE status='waiting'; terminal rows remain stored.
  * Lock relevant rows / use withTransaction for atomic mutations.
  * The generated active_user_id unique index is the final duplicate-join guard.
- * NOTE: This module is intentionally not wired into app.js yet.
+ * SQL routes select this repository with QUEUE_STORAGE=mysql.
  */
 import { pool } from '../db/pool.js';
 import { withTransaction } from '../db/transaction.js';
 import { queueEntryRow } from '../db/mappers.js';
 import { decorateEntries, findMoveNeighbour, ALMOST_READY_LIMIT } from '../modules/queueView.js';
 import { fail } from '../shared/errors.js';
+import * as activityRepository from './activity.repo.js';
 export { pool, withTransaction, queueEntryRow };
 
 // A supplied connection already belongs to the caller's transaction.
@@ -71,22 +72,14 @@ export async function findActiveEntryForUser(userId, connection = pool) {
 
   return ordered.find((entry) => entry.userId === Number(userId)) ?? null;
 }
-// --- Member 4 swap seam -----------------------------------------------------
-// History and notification rows belong to Member 4's activity.repo.js, but
-// they must be written inside this transaction: a queue change that committed
-// without its history would be unrecoverable. These two helpers hold all of
-// that SQL so Member 4 can replace their bodies with activity.repo.js calls
-// without touching the queue logic around them.
-
+// Member 4 activity writes use the same transaction connection as the queue.
 export async function recordJoinActivity(
   connection,
   { entryId, userId, serviceId, serviceName, joinedAt },
 ) {
-  await connection.execute(
-    `INSERT INTO history (id, user_id, service_id, service_name, joined_at, outcome)
-     VALUES (?, ?, ?, ?, ?, 'Waiting')`,
-    [entryId, userId, serviceId, serviceName, joinedAt],
-  );
+  await activityRepository.createHistoryForJoin({
+    entryId, userId, serviceId: Number(serviceId), serviceName, joinedAt,
+  }, connection);
 
   await emitNotification(connection, {
     userId,
@@ -96,17 +89,8 @@ export async function recordJoinActivity(
   });
 }
 
-// UNIQUE (entry_id, event) makes this idempotent: re-entering the threshold
-// after a reorder cannot produce a second almost-ready for the same entry.
-export async function emitNotification(connection, { userId, entryId, event, message }) {
-  // created_at is supplied for the same reason as queue_entries.joined_at:
-  // the SQL default would record server-local time, not UTC.
-  await connection.execute(
-    `INSERT INTO notifications (user_id, entry_id, event, message, type, created_at)
-     VALUES (?, ?, ?, ?, 'info', ?)
-     ON DUPLICATE KEY UPDATE id = id`,
-    [userId, entryId, event, message, new Date()],
-  );
+export async function emitNotification(connection, fields) {
+  return activityRepository.emitNotification(fields, connection);
 }
 
 export async function emitAlmostReady(connection, ordered, serviceName) {
@@ -119,7 +103,6 @@ export async function emitAlmostReady(connection, ordered, serviceName) {
     });
   }
 }
-// --- end Member 4 swap seam -------------------------------------------------
 
 // Locks the service's queue row and returns it with the service metadata.
 // Every mutation starts here, so lock order is always queues -> queue_entries
@@ -231,10 +214,10 @@ async function finishLockedEntry(transaction, entry, outcome) {
     'UPDATE queue_entries SET status = ?, ended_at = ? WHERE id = ?',
     [TERMINAL_STATUS[outcome], endedAt, entry.id],
   );
-  await transaction.execute(
-    'UPDATE history SET outcome = ?, ended_at = ? WHERE id = ?',
-    [outcome, endedAt, entry.id],
-  );
+  // Share the exact queue completion time and preserve final-outcome rules.
+  await activityRepository.completeHistory({
+    entryId: Number(entry.id), outcome, endedAt,
+  }, transaction);
   await emitNotification(transaction, {
     userId: Number(entry.user_id),
     entryId: Number(entry.id),

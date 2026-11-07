@@ -10,6 +10,7 @@
     "start": "node --env-file-if-exists=.env src/server.js",
     "dev": "node --env-file-if-exists=.env --watch src/server.js",
     "test": "node --test",
+    "test:activity": "node --test test/a4-activity*.test.js",
     "test:db": "node --env-file-if-exists=.env.test --test",
     "coverage": "node --test --experimental-test-coverage --test-coverage-include=src/**/*.js --test-coverage-exclude=src/server.js --test-coverage-lines=75 --test-coverage-functions=75",
     "coverage:db": "node --env-file-if-exists=.env.test --test --experimental-test-coverage --test-coverage-include=src/**/*.js --test-coverage-exclude=src/server.js --test-coverage-lines=75 --test-coverage-functions=75",
