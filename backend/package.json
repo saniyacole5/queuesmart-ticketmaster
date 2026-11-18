@@ -17,7 +17,11 @@
     "db:check": "node --env-file-if-exists=.env scripts/check-db.js",
     "db:migrate": "node --env-file-if-exists=.env scripts/migrate.js",
     "db:seed:services": "node --env-file-if-exists=.env scripts/seed-services.js",
-    "db:bootstrap-admin": "node --env-file=.env scripts/bootstrap-admin.js"
+    "db:bootstrap-admin": "node --env-file=.env scripts/bootstrap-admin.js",
+    "demo:seed": "node --env-file=.env scripts/seed-final-demo.js",
+    "demo:check": "node --env-file=.env scripts/check-final-runtime.js",
+    "demo:capture": "node --env-file=.env scripts/check-final-persistence.js capture",
+    "demo:verify": "node --env-file=.env scripts/check-final-persistence.js verify"
   },
   "dependencies": {
     "express": "5.3.0",

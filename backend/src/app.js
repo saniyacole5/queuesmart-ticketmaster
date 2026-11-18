@@ -6,6 +6,8 @@ import * as usersRepository from './repositories/users.repo.js';
 import * as servicesRepository from './repositories/services.repo.js';
 import * as queuesRepository from './repositories/queues.repo.js';
 import * as activityRepository from './repositories/activity.repo.js';
+import * as reportsRepository from './repositories/reports.repo.js';
+import { estimateSmartWait } from './modules/smartWait.js';
 import { createServices } from './modules/services.js';
 import { createQueues } from './modules/queues.js';
 import { createNotifications } from './modules/notifications.js';
@@ -225,15 +227,22 @@ export function createApp(options = {}) {
     const list = await services.list();
 
     return list.map((service) => {
+      // Historical records stay on the server when SMART-3 is completed.
+      const { servedHistory = [], ...publicService } = service;
       const queueLength =
         servicesStorage === 'mysql'
           ? service.queueLength
           : queues.snapshot(service.id).length;
 
       return {
-        ...service,
+        ...publicService,
         queueLength,
-        estimatedWait: queueLength * service.expectedDuration,
+        // SMART-3: services.repo.js will attach servedHistory from MySQL.
+        estimatedWait: estimateSmartWait(
+          queueLength + 1,
+          service.expectedDuration,
+          servedHistory,
+        ),
       };
     });
   }
@@ -313,6 +322,16 @@ export function createApp(options = {}) {
 
   app.get('/api/history', user, async (req, res) => {
     ok(res, await history.list(req.user.id));
+  });
+
+  // Member work area - Reporting API and coverage.
+  app.get('/api/admin/reports', admin, async (req, res) => {
+    if ([authStorage, servicesStorage, queueStorage, activityStorage]
+      .some(mode => mode !== 'mysql')) {
+      fail(503, 'REPORTS_REQUIRE_MYSQL', 'Reports require full MySQL storage.');
+    }
+    const repository = options.reportsRepository ?? reportsRepository;
+    ok(res, await repository.generateReport());
   });
 
   app.get('/api/state', async (req, res) => {

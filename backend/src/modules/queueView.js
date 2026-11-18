@@ -1,7 +1,7 @@
 // MEMBER 3: pure derivation shared by the in-memory and SQL queue paths.
 // These functions never touch the database: callers pass an already-ordered
 // list, so the same ordering rule can be proven once and reused everywhere.
-import { estimateWait } from "./waitTime.js";
+import { estimateSmartWait } from "./smartWait.js";
 
 // Positions 1 and 2 are "close to being served" (docs/API.md).
 export const ALMOST_READY_LIMIT = 2;
@@ -14,7 +14,11 @@ export function decorateEntries(entries, service) {
     return {
       ...entry,
       position,
-      estimatedWait: estimateWait(position, service.expectedDuration),
+      estimatedWait: estimateSmartWait(
+        position,
+        service.expectedDuration,
+        service.servedHistory ?? [],
+      ),
       serviceName: service.name,
       status: index < ALMOST_READY_LIMIT ? "Almost Ready" : "Waiting",
     };
