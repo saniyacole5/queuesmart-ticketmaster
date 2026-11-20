@@ -134,15 +134,6 @@ export default function AdminLoginPage({ onLogin }) {
           </button>
         </form>
 
-        <aside className="demo-accounts" aria-labelledby="admin-demo-title">
-          <h2 id="admin-demo-title">Demo administrator account</h2>
-          <div className="demo-account">
-            <strong>Administrator</strong>
-            <span>admin@queuesmart.com</span>
-            <span>Password: Admin1234</span>
-          </div>
-        </aside>
-
         <p className="alternate-login-link">
           Not an administrator? <Link to="/login">Return to user login</Link>
         </p>

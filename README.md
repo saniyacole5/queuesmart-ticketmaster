@@ -1,80 +1,116 @@
-# QueueSmart Ticketmaster — Assignment 4 (MySQL persistence)
+# QueueSmart Ticketmaster
 
-QueueSmart is a React/Vite frontend with a Node.js 24 + Express 5 backend. Assignment 3 uses **in-memory** users, services, queue entries, notifications, and history. Assignment 4 requires a **real persistent MySQL database**, functioning database-backed APIs, React display of actual stored data, input validation, meaningful tests and test coverage, and a group report. The existing frontend/backend API contract is in [`docs/API.md`](docs/API.md).
+QueueSmart is a React/Vite frontend with a Node.js 24+ and Express 5 backend. The application integrates user authentication, service management, queues, participation history, notifications, and MySQL persistence. The final assignment adds administrator reporting, CSV export, and a historical wait-time feature.
 
-> **Important current status:** Aiven MySQL connectivity is configured in `backend/src/db/pool.js`, but **a successful connection does not make the application database-backed**. The current `backend/src/app.js` still builds `createStore()` from `backend/src/store.js`. Member work below must replace this production storage path and preserve the API response shapes. `/api/health` should say `storage: 'mysql'` only after that conversion has been verified.
+The frontend/backend API contract is documented in [docs/API.md](docs/API.md). The final assignment work areas and demo sequence are in [docs/final-docs/README.md](docs/final-docs/README.md).
 
-## Setup at a glance
+## Current implementation
 
-| Component              | Technology                | Where it runs                                      |
-| ---------------------- | ------------------------- | -------------------------------------------------- |
-| React frontend         | Vite / React              | Your own computer, usually `http://localhost:5173` |
-| Express backend        | Node.js 24 / Express 5    | Your own computer, usually `http://127.0.0.1:3001` |
-| Shared persistent data | **MySQL 8.4 on Aiven**    | Aiven cloud service                                |
-| Aiven project          | `queuesmart-ticketmaster` | Organizational container                           |
-| Aiven service          | `queuesmart-mysql`        | Hosted MySQL instance                              |
-| MySQL database         | **`queuesmart_db`**       | Contains all application tables                    |
-| Runtime MySQL user     | **`queuesmart_app`**      | Used by Node.js, subject to grants                 |
+MySQL implementations are available for authentication, services, queue entries, history, and notifications. The four storage settings in `backend/.env` select these implementations.
 
-Aiven also has an automatically created `defaultdb` and `avnadmin` account. These are not the intended QueueSmart runtime database/user. Do **not** put an Aiven database password into GitHub, screenshots, documentation, source code, or the React frontend.
+The final demo scripts and the real backend-process restart test are included. Reporting queries, CSV assembly, and the historical wait-time algorithm still have implementation TODOs. Track their completion in the [final work areas](docs/final-docs/README.md).
 
-## Step 2 — Database credentials and local `.env`
+## Requirements and setup at a glance
 
-The database is hosted on Aiven; each teammate uses MySQL Workbench or the Node.js backend to connect to the **same `queuesmart_db`**.
+- Node.js 24 or newer and the npm version bundled with Node.js.
+- Backend dependencies installed using `npm ci` in `backend`. These include Express and `mysql2`.
+- Frontend dependencies installed using `npm ci` in `frontend`. These include React, React Router, Vite, and the configured lint tools.
+- Access to the team's Aiven MySQL database for running the application.
+- An isolated local or CI MySQL instance for database integration tests.
 
-The `queuesmart_app` password will be provided. Never paste it in chat or commit it.
+| Component | Technology | Normal location |
+| --- | --- | --- |
+| React frontend | React / Vite | `http://localhost:5173` |
+| Backend API | Node.js 24+ / Express 5 | `http://127.0.0.1:3001` |
+| Shared application data | MySQL 8.4 on Aiven | Aiven cloud service |
+| Aiven project | `queuesmart-ticketmaster` | Aiven dashboard |
+| Aiven service | `queuesmart-mysql` | Aiven dashboard |
+| Application database | `queuesmart_db` | Shared MySQL instance |
+| Application database user | `queuesmart_app` | Account subject to configured grants |
 
-The repository already tracks the **public** Aiven CA certificate at `backend/certs/ca.pem`; this is _not_ a secret or private key.
+MySQL Workbench can be used to inspect tables, foreign keys, and stored rows. Store actual database and demo passwords in your local environment file. Commit the placeholder configuration in `backend/.env.example`.
 
-In VS Code terminal **from the repository root**:
+## Configure the backend
+
+The commands in this README use PowerShell. Begin in the repository root.
 
 ```powershell
 cd backend
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+npm ci
 ```
 
-Then edit **`backend/.env`** to replace `REPLACE_WITH_DB_PASSWORD` with the password for **`queuesmart_app`**. The example specifies:
+Edit `backend/.env` with the current Aiven connection settings and your chosen demo password.
 
 ```dotenv
 PORT=3001
 SESSION_TTL_MINUTES=60
+
 DB_HOST=queuesmart-mysql-queuesmart-ticketmaster.i.aivencloud.com
 DB_PORT=15771
 DB_USER=queuesmart_app
 DB_PASSWORD=REPLACE_WITH_DB_PASSWORD
 DB_NAME=queuesmart_db
 DB_SSL_CA_PATH=./certs/ca.pem
+
+AUTH_STORAGE=mysql
+SERVICES_STORAGE=mysql
+QUEUE_STORAGE=mysql
+ACTIVITY_STORAGE=mysql
+
+DEMO_PREFIX=final-demo
+DEMO_USER_PASSWORD=REPLACE_WITH_DEMO_PASSWORD
+DEMO_API_URL=http://127.0.0.1:3001/api
 ```
 
-Aiven may change service endpoints, so use the current Aiven dashboard values if they differ. `DB_SSL_CA_PATH` is resolved relative to the **`backend` working directory**. SSL/TLS certificate verification remains enabled for the Aiven connection. `backend/.gitignore` ignores `.env` and does _not_ ignore the tracked public `ca.pem`.
+Replace both password placeholders before using the setup commands. Use the current Aiven dashboard values if the service endpoint differs from the example. `DEMO_USER_PASSWORD` must contain 8-128 characters.
 
-**Quick connection check:**
+The public Aiven CA certificate is tracked at `backend/certs/ca.pem`. `DB_SSL_CA_PATH` is resolved relative to the backend working directory. The database pool verifies the Aiven TLS certificate.
+
+| Setting | Persistent component |
+| --- | --- |
+| `AUTH_STORAGE=mysql` | User credentials, profiles, and sessions |
+| `SERVICES_STORAGE=mysql` | Services and their queue metadata |
+| `QUEUE_STORAGE=mysql` | Queue entries and queue lifecycle actions |
+| `ACTIVITY_STORAGE=mysql` | Participation history and notifications |
+
+Set all four values to `mysql` for the final demo. Each omitted storage setting defaults to the earlier in-memory mode. SQL services require SQL authentication, and SQL queues require SQL services.
+
+`DEMO_API_URL` is used by the runtime and persistence-check scripts. Keep it aligned with the API address used during the demonstration.
+
+## Check the database and schema
+
+From `backend`, run:
 
 ```powershell
-npm ci
 npm run db:check
 ```
 
-A successful connection reports `database: queuesmart_db` and the authenticated account. Before schema creation, `db:check` may report missing tables, which is expected.
+The command reports the selected database, authenticated database account, MySQL version, and missing project tables. Confirm the database is `queuesmart_db`.
 
-## Step 3 — Create currently empty database tables
+If tables are missing, create them with an account that has the required schema privileges.
 
-The Aiven database exists but has **no project tables yet**. Creating a MySQL user or `.env` alone does not create tables.
+```powershell
+npm run db:migrate
+npm run db:check
+```
 
-Project Tables:
+The migration script runs `backend/sql/001_schema.sql`, whose `CREATE TABLE IF NOT EXISTS` statements support initial setup. Future schema changes require appropriate migrations.
 
-1. `user_credentials` — email, salted scrypt digest, role
-2. `user_profiles` — profile name and optional contact/preferences, linked to credentials
-3. `auth_sessions` — hashed bearer tokens with expiry, linked to credentials
-4. `services` — name, description, duration, priority, open state
-5. `queues` — one queue per service, open/closed state
-6. `queue_entries` — users, ordering, priority, active/terminal status, timestamp
-7. `history` — participation outcome and immutable service-name snapshot
-8. `notifications` — user-specific events, message, read state, timestamp
+| Table | Stored information |
+| --- | --- |
+| `user_credentials` | Email, salted scrypt password digest, and role |
+| `user_profiles` | Profile name and optional contact/preferences |
+| `auth_sessions` | Hashed bearer tokens and session expiry |
+| `services` | Service description, expected duration, priority, and open state |
+| `queues` | One queue per service and its open/closed state |
+| `queue_entries` | Participation order, priority, status, and timestamps |
+| `history` | Participation outcome and service-name snapshot |
+| `notifications` | User-specific events and read state |
 
-`queue_entries` includes a generated-column unique constraint that permits **at most one `waiting` entry per user across all queues**, even when two backends try to join concurrently. Terminal entries remain as records (soft finish) so foreign keys and history remain intact.
+A generated-column unique constraint permits at most one waiting entry per user across all queues. Terminal entries are retained so history and notification foreign keys remain valid.
 
-To verify schema creation:
+These queries can be run in MySQL Workbench to inspect the current database.
 
 ```sql
 USE queuesmart_db;
@@ -83,68 +119,226 @@ SELECT COUNT(*) AS users FROM user_credentials;
 SELECT COUNT(*) AS services FROM services;
 ```
 
-Both counts should initially be zero. You can optionally insert **demo services only** using `npm run db:seed:services` from `backend` after schema creation; seed is opt-in and safe to rerun. It does **not** create demo users, passwords, or admin accounts. See [`docs/A4_DATABASE_DESIGN.md`](docs/A4_DATABASE_DESIGN.md).
+The earlier service-only seed remains available as `npm run db:seed:services`. Use the final demo seed below when preparing customer participation data. Additional schema details are in [docs/a4-docs/A4_DATABASE_DESIGN.md](docs/a4-docs/A4_DATABASE_DESIGN.md).
 
-## Step 4 — Run the application locally
+## Administrator setup
 
-Open **two terminals**, each from the repository root:
+Use the administrator account already provisioned in the team's MySQL database.
 
-```powershell
-# Terminal 1
-cd backend
-npm ci
-npm run dev
+For the first administrator in a fresh database, add these temporary settings to `backend/.env`. Replace the example values with the intended administrator details.
+
+```dotenv
+BOOTSTRAP_ADMIN_NAME=Demo Administrator
+BOOTSTRAP_ADMIN_EMAIL=admin@example.test
+BOOTSTRAP_ADMIN_PASSWORD=REPLACE_WITH_ADMIN_PASSWORD
 ```
 
+The password must contain 8-128 characters. From `backend`, run:
+
 ```powershell
-# Terminal 2
+npm run db:bootstrap-admin
+```
+
+The script creates the initial administrator when the database has no administrator. If an administrator already exists, use that existing account. Remove the temporary `BOOTSTRAP_ADMIN_*` settings after initial provisioning.
+
+Sign in at `http://localhost:5173/admin/login`. Public registration creates customer accounts with the `user` role.
+
+## Prepare the final demo data
+
+From `backend`, with `DEMO_PREFIX` and `DEMO_USER_PASSWORD` configured, run:
+
+```powershell
+npm run demo:seed
+```
+
+The script creates its fixture data in one transaction.
+
+| Demo data | Created records |
+| --- | --- |
+| Service | One open service named `Final Demo <DEMO_PREFIX>`, with a five-minute configured duration |
+| Customers | Seven users named Demo Customer 1 through Demo Customer 7 |
+| Historical activity | Four served participations with completion timestamps three minutes apart |
+| Active queue | Customers 5 and 6 waiting in the demo service |
+| Interactive demo customer | Customer 7, ready to join through React |
+| Activity records | Matching participation history and notification records |
+
+Customer emails follow `<DEMO_PREFIX>-customer-<number>@example.test`. With the default prefix, sign in as:
+
+```text
+final-demo-customer-7@example.test
+```
+
+Use the password you configured in `DEMO_USER_PASSWORD`. Customer 7 joins the demo service through the UI, initially behind the two customers seeded into the queue. The historical records provide sample data for the smart-feature and reporting work.
+
+`DEMO_PREFIX` accepts 1-32 lowercase letters, digits, or hyphens. The default value is `final-demo`.
+
+Rerunning the seed with the same prefix detects the existing service and reuses the current dataset. Existing queue progress and customer passwords are retained. `DEMO_USER_PASSWORD` applies when the customers are first created. Change `DEMO_PREFIX` to create an additional dataset for a fresh rehearsal.
+
+## Run the application
+
+Complete the environment, schema, and account setup above. Open two terminals, each initially in the repository root.
+
+### Backend terminal
+
+```powershell
+cd backend
+npm ci
+npm run db:check
+npm run demo:seed
+npm start
+```
+
+For development with automatic backend reloads, use `npm run dev`.
+
+### Frontend terminal
+
+```powershell
 cd frontend
 npm ci
 npm run dev
 ```
 
-Visit `http://localhost:5173`. The React/Vite development proxy forwards `/api` calls to the Express server on port `3001` (`frontend/vite.config.js`). The API status is at `http://127.0.0.1:3001/api/health`.
+Visit `http://localhost:5173` for the application. The backend normally listens at `http://127.0.0.1:3001`, and its health endpoint is `http://127.0.0.1:3001/api/health`.
 
-**Critical:** While the old `app.js`/modules still call `createStore()`, this runs **the A3 in-memory backend** and the existing seeded demo credentials may still work, but no records will reach MySQL. Do not claim this is a database-backed demo. The team must replace storage with SQL repositories, await asynchronous queries in Express 5 handlers, and make `/api/health` report the correct storage system.
+Vite forwards `/api` requests to port `3001` through `frontend/vite.config.js`. If the backend port changes, update that proxy target and `DEMO_API_URL`. Vite may select another frontend port when `5173` is occupied, so use the URL printed in its terminal.
 
-### Final database-backed demo acceptance
+Use separate customer and administrator browser sessions for the team demonstration.
 
-- Register a new user, log in, create services as an admin, join a queue, verify position/wait time, mark notifications read, and complete/leave a queue.
-- In Workbench on **Aiven `queuesmart_db`**, verify corresponding SQL rows and foreign key relations.
-- Restart **the backend**; the service, user, queue/history and notification data should remain. Sessions should be either durably stored or have an explicitly documented expiration/re-login policy.
-- Use separate browser sessions for user/admin and two different users to check isolation, role restrictions, concurrent joins, and queue ordering.
-- Verify there is **no dependency on `defaultdb`**, and API data is served from MySQL rather than the old `store.js`.
+## Verify MySQL mode and persistence
 
-## Team workflow — four members
+Keep the frontend and backend running. Open an additional terminal in `backend`.
 
-Member labels are work packages. Each member should contribute actual code, tests, frontend verification and evidence. Detailed deliverables, file boundaries, handoffs, acceptance criteria and proposed PR order are in [`docs/A4_TEAM_PLAN.md`](docs/A4_TEAM_PLAN.md).
+```powershell
+npm run demo:check
+```
 
-| Work package | Main task                                                                                        | Files owned / scaffold starting points                                                     |
-| ------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| **Member 1** | MySQL schema, authenticated users/profiles/sessions and authentication API persistence           | `backend/sql/`, `backend/src/repositories/users.repo.js`, `backend/src/modules/auth.js`    |
-| **Member 2** | Services and queue metadata persistence, duration/priority and admin UI                          | `backend/src/repositories/services.repo.js`, `backend/src/modules/services.js`, service UI |
-| **Member 3** | Concurrent queue entry lifecycle, positions, priority/move and transaction safety                | `backend/src/repositories/queues.repo.js`, `backend/src/modules/queues.js`, queue UI       |
-| **Member 4** | Notifications/history persistence, integration checks, database tests/coverage and demo evidence | `backend/src/repositories/activity.repo.js`, notification/history modules, CI and reports  |
+The runtime check confirms that the running API reports `mysql` for overall storage and all four component storage fields. Verify data durability using the following sequence.
 
-**Shared files** (`backend/src/app.js`, `backend/src/server.js`, `backend/src/db/pool.js`, `frontend/src/api/`, `.github/workflows/`) should be changed by agreement. Preserve the `/api` shapes documented in `docs/API.md`, including `data` response wrapping and error codes. See [`docs/A4_INTEGRATION.md`](docs/A4_INTEGRATION.md).
+1. Sign in through React as the customer printed by `demo:seed`, normally `final-demo-customer-7@example.test`.
+2. Join the seeded demo service.
+3. From the additional backend terminal, capture the current records.
 
-Suggested feature branches: `feature/a4-auth-db`, `feature/a4-services-db`, `feature/a4-queues-db`, `feature/a4-activity-db`. Base each on the team's agreed updated `a4-scaffold` foundation. Open PRs to the agreed integration branch; require review and rerun tests after each merge. Resolve conflicts collaboratively, never silently replace a teammate's work.
+   ```powershell
+   npm run demo:capture
+   ```
 
-## Testing, CI and submission
+4. In the backend server terminal, press `Ctrl+C`, then start Express again.
 
-From `backend`: `npm test`, `npm run coverage` (current scripts enforce at least 75% line/function coverage for measured backend code). From `frontend`: `npm run lint`, `npm run build`. The included `.github/workflows/a4.yml` is a **proposed** GitHub Actions workflow with a temporary MySQL 8.4 service and intentionally non-production credentials. The included `backend/test/a4-schema.test.js` checks schema structure without touching the shared Aiven database. Actual DB integration tests must be added by the team using an isolated CI/test database and real assertions.
+   ```powershell
+   npm start
+   ```
 
-**Never run test suites that clear or reset tables against the shared Aiven `queuesmart_db`.** Use a separate local/CI database, unique fixture IDs and transactions. CI must not require the Aiven password.
+5. Once the backend has started, compare the stored records from the additional backend terminal.
 
-The Assignment 4 group submission is one Word/PDF file with: GitHub repository link, SQL schema with primary/foreign keys, real coverage results, and truthful contributions from all four members. Capture evidence of data persisting after backend restart. See [`docs/A4_SUBMISSION_CHECKLIST.md`](docs/A4_SUBMISSION_CHECKLIST.md).
+   ```powershell
+   npm run demo:verify
+   ```
 
-### Documentation reading order
+6. Reload the original customer browser tab and confirm that the session, queue position, and stored activity are still available.
 
-1. **This README**, then [`A4_CHANGES.md`](A4_CHANGES.md) for ZIP-versus-branch file comparisons.
-2. [`docs/A4_DATABASE_DESIGN.md`](docs/A4_DATABASE_DESIGN.md): schema, keys, empty database, privileges, SSL.
-3. [`docs/A4_TEAM_PLAN.md`](docs/A4_TEAM_PLAN.md): four work packages, handoffs and review order.
-4. Existing [`docs/API.md`](docs/API.md) in the GitHub branch: current user/admin endpoint contract.
-5. [`docs/A4_INTEGRATION.md`](docs/A4_INTEGRATION.md): safe replacement of in-memory modules.
-6. [`docs/A4_TEST_PLAN.md`](docs/A4_TEST_PLAN.md) and [`docs/A4_SUBMISSION_CHECKLIST.md`](docs/A4_SUBMISSION_CHECKLIST.md): verification and evidence.
+The capture and verification scripts compare customer and queue identities, service details, history records, and notification IDs. They authenticate using the configured demo customer each time. The automated restart test below additionally reuses the original session tokens across a real backend-process restart.
 
-Existing A3 documents in `docs/` remain useful historical references. Avoid treating their in-memory behavior as A4 acceptance.
+The capture is saved locally at `backend/demo-persistence.snapshot.local.json`, which is covered by `.gitignore`. Complete verification before performing further queue actions, because serving, leaving, reordering, and changing services can alter the captured values.
+
+After the persistence check, demonstrate administrator service management and queue actions, the smart estimate, and report generation with CSV download as those final features are completed. The live demo sequence is in [docs/final-docs/demo-and-submission.md](docs/final-docs/demo-and-submission.md).
+
+## Automated verification
+
+### Ordinary backend tests
+
+From `backend`, run:
+
+```powershell
+npm test
+```
+
+This command loads no environment file automatically. Database suites run when `QUEUESMART_DB_TESTS=1` is explicitly present in the environment. Tests marked as TODO identify work still awaiting implementation.
+
+### Local database tests
+
+Use an isolated local MySQL instance for tests that create and delete fixture rows. Prepare `queuesmart_db` on that instance and create `backend/.env.test` with its connection details.
+
+```dotenv
+DB_HOST=127.0.0.1
+DB_PORT=3307
+DB_USER=queuesmart_app
+DB_PASSWORD=REPLACE_WITH_LOCAL_TEST_PASSWORD
+DB_NAME=queuesmart_db
+DB_SSL_CA_PATH=
+QUEUESMART_DB_TESTS=1
+```
+
+Adjust the local port and credentials for your test instance. From `backend`, load the schema into that instance and run the tests.
+
+```powershell
+node --env-file=.env.test scripts/migrate.js
+npm run test:db
+npm run coverage:db
+```
+
+The database suites check for a local database host. The shared Aiven database is used for the application and manual demonstration.
+
+The test at `backend/test/final-persistence.test.js` starts the actual backend process in full MySQL mode, creates test accounts and a service, performs customer/admin HTTP actions, restarts the process, and compares the records using the original session tokens. It also checks that the notification read state survives.
+
+To run that test on its own with the local test environment:
+
+```powershell
+node --env-file=.env.test --test test/final-persistence.test.js
+```
+
+### Frontend checks
+
+From `frontend`, run:
+
+```powershell
+npm run lint
+npm run build
+```
+
+### GitHub Actions and coverage evidence
+
+The workflow at [.github/workflows/a4.yml](.github/workflows/a4.yml) runs on pushes and pull requests. Its displayed name is **Assignment 4 checks**.
+
+The workflow starts an isolated MySQL 8.4 service, creates the schema, enables database tests with `QUEUESMART_DB_TESTS=1`, runs backend tests and coverage, and checks the frontend lint and build. Its database credentials are configured for the temporary CI instance.
+
+To inspect the results:
+
+1. Open the repository's **Actions** tab.
+2. Select **Assignment 4 checks** and the run for your branch or pull request.
+3. Open the `validate` job.
+4. Expand **Run backend tests and coverage**.
+5. Find `final persistence survives a real backend process restart` and confirm that it executed successfully.
+6. Download the **backend-coverage** artifact for `coverage-report.txt` and the schema file.
+
+The current npm coverage scripts enforce 75% line and function coverage for measured backend code. The final work plan targets at least 80% overall backend coverage. Capture the actual coverage result from the final merged version for submission.
+
+## Team workflow
+
+The four final work areas are documented in [docs/final-docs/README.md](docs/final-docs/README.md). Members choose their work areas and record their actual contributions there.
+
+| Work area | Starting points |
+| --- | --- |
+| Integration and persistence | Backend environment, startup wiring, demo scripts, and the real restart test |
+| Admin report screen and CSV export | Admin routes/navigation, `ReportsPage.jsx`, and `reportCsv.js` |
+| Required smart feature | `smartWait.js`, historical service data, and consistent `estimatedWait` values |
+| Reporting API and coverage | `reports.repo.js`, the admin report route, database tests, and final coverage evidence |
+
+Coordinate edits to shared files such as `backend/src/app.js`, `backend/src/server.js`, `backend/src/db/pool.js`, `frontend/src/api/`, and `.github/workflows/`. Preserve the API shapes documented in `docs/API.md`, including the `data` response wrapper and existing error codes.
+
+Use feature branches based on the agreed `final` integration branch, review changes together, and rerun checks after merges. Each member should contribute code, tests or verification appropriate to the work area, and a live demo segment.
+
+## Submission and supporting documents
+
+The final group submission is one Word or PDF file uploaded to Canvas. Include the repository link, fresh backend coverage evidence, actual contributions from all four members, and an example generated report with an explanation of its data, generation process, and access permissions. All four members participate in the team demo.
+
+| Document | Purpose |
+| --- | --- |
+| [docs/API.md](docs/API.md) | Frontend/backend API contract |
+| [docs/final-docs/README.md](docs/final-docs/README.md) | Final work-area division |
+| [docs/final-docs/demo-and-submission.md](docs/final-docs/demo-and-submission.md) | Final demo and submission checklist |
+| [docs/a4-docs/A4_DATABASE_DESIGN.md](docs/a4-docs/A4_DATABASE_DESIGN.md) | Database tables, keys, privileges, and TLS setup |
+| [docs/a4-docs/A4_INTEGRATION.md](docs/a4-docs/A4_INTEGRATION.md) | Earlier MySQL integration design |
+| [docs/a4-docs/A4_TEAM_PLAN.md](docs/a4-docs/A4_TEAM_PLAN.md) | Assignment 4 work packages |
+| [docs/a4-docs/A4_TEST_PLAN.md](docs/a4-docs/A4_TEST_PLAN.md) | Earlier test strategy |
+| [docs/a4-docs/A4_SUBMISSION_CHECKLIST.md](docs/a4-docs/A4_SUBMISSION_CHECKLIST.md) | Assignment 4 submission background |
+| [A4_CHANGES.md](A4_CHANGES.md) | Earlier scaffold change history |
