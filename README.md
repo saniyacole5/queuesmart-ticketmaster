@@ -18,15 +18,15 @@ The final demo scripts and the real backend-process restart test are included. R
 - Access to the team's Aiven MySQL database for running the application.
 - An isolated local or CI MySQL instance for database integration tests.
 
-| Component | Technology | Normal location |
-| --- | --- | --- |
-| React frontend | React / Vite | `http://localhost:5173` |
-| Backend API | Node.js 24+ / Express 5 | `http://127.0.0.1:3001` |
-| Shared application data | MySQL 8.4 on Aiven | Aiven cloud service |
-| Aiven project | `queuesmart-ticketmaster` | Aiven dashboard |
-| Aiven service | `queuesmart-mysql` | Aiven dashboard |
-| Application database | `queuesmart_db` | Shared MySQL instance |
-| Application database user | `queuesmart_app` | Account subject to configured grants |
+| Component                 | Technology                | Normal location                      |
+| ------------------------- | ------------------------- | ------------------------------------ |
+| React frontend            | React / Vite              | `http://localhost:5173`              |
+| Backend API               | Node.js 24+ / Express 5   | `http://127.0.0.1:3001`              |
+| Shared application data   | MySQL 8.4 on Aiven        | Aiven cloud service                  |
+| Aiven project             | `queuesmart-ticketmaster` | Aiven dashboard                      |
+| Aiven service             | `queuesmart-mysql`        | Aiven dashboard                      |
+| Application database      | `queuesmart_db`           | Shared MySQL instance                |
+| Application database user | `queuesmart_app`          | Account subject to configured grants |
 
 MySQL Workbench can be used to inspect tables, foreign keys, and stored rows. Store actual database and demo passwords in your local environment file. Commit the placeholder configuration in `backend/.env.example`.
 
@@ -67,12 +67,12 @@ Replace both password placeholders before using the setup commands. Use the curr
 
 The public Aiven CA certificate is tracked at `backend/certs/ca.pem`. `DB_SSL_CA_PATH` is resolved relative to the backend working directory. The database pool verifies the Aiven TLS certificate.
 
-| Setting | Persistent component |
-| --- | --- |
-| `AUTH_STORAGE=mysql` | User credentials, profiles, and sessions |
-| `SERVICES_STORAGE=mysql` | Services and their queue metadata |
-| `QUEUE_STORAGE=mysql` | Queue entries and queue lifecycle actions |
-| `ACTIVITY_STORAGE=mysql` | Participation history and notifications |
+| Setting                  | Persistent component                      |
+| ------------------------ | ----------------------------------------- |
+| `AUTH_STORAGE=mysql`     | User credentials, profiles, and sessions  |
+| `SERVICES_STORAGE=mysql` | Services and their queue metadata         |
+| `QUEUE_STORAGE=mysql`    | Queue entries and queue lifecycle actions |
+| `ACTIVITY_STORAGE=mysql` | Participation history and notifications   |
 
 Set all four values to `mysql` for the final demo. Each omitted storage setting defaults to the earlier in-memory mode. SQL services require SQL authentication, and SQL queues require SQL services.
 
@@ -97,16 +97,16 @@ npm run db:check
 
 The migration script runs `backend/sql/001_schema.sql`, whose `CREATE TABLE IF NOT EXISTS` statements support initial setup. Future schema changes require appropriate migrations.
 
-| Table | Stored information |
-| --- | --- |
-| `user_credentials` | Email, salted scrypt password digest, and role |
-| `user_profiles` | Profile name and optional contact/preferences |
-| `auth_sessions` | Hashed bearer tokens and session expiry |
-| `services` | Service description, expected duration, priority, and open state |
-| `queues` | One queue per service and its open/closed state |
-| `queue_entries` | Participation order, priority, status, and timestamps |
-| `history` | Participation outcome and service-name snapshot |
-| `notifications` | User-specific events and read state |
+| Table              | Stored information                                               |
+| ------------------ | ---------------------------------------------------------------- |
+| `user_credentials` | Email, salted scrypt password digest, and role                   |
+| `user_profiles`    | Profile name and optional contact/preferences                    |
+| `auth_sessions`    | Hashed bearer tokens and session expiry                          |
+| `services`         | Service description, expected duration, priority, and open state |
+| `queues`           | One queue per service and its open/closed state                  |
+| `queue_entries`    | Participation order, priority, status, and timestamps            |
+| `history`          | Participation outcome and service-name snapshot                  |
+| `notifications`    | User-specific events and read state                              |
 
 A generated-column unique constraint permits at most one waiting entry per user across all queues. Terminal entries are retained so history and notification foreign keys remain valid.
 
@@ -153,14 +153,14 @@ npm run demo:seed
 
 The script creates its fixture data in one transaction.
 
-| Demo data | Created records |
-| --- | --- |
-| Service | One open service named `Final Demo <DEMO_PREFIX>`, with a five-minute configured duration |
-| Customers | Seven users named Demo Customer 1 through Demo Customer 7 |
-| Historical activity | Four served participations with completion timestamps three minutes apart |
-| Active queue | Customers 5 and 6 waiting in the demo service |
-| Interactive demo customer | Customer 7, ready to join through React |
-| Activity records | Matching participation history and notification records |
+| Demo data                 | Created records                                                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------- |
+| Service                   | One open service named `Final Demo <DEMO_PREFIX>`, with a five-minute configured duration |
+| Customers                 | Seven users named Demo Customer 1 through Demo Customer 7                                 |
+| Historical activity       | Four served participations with completion timestamps three minutes apart                 |
+| Active queue              | Customers 5 and 6 waiting in the demo service                                             |
+| Interactive demo customer | Customer 7, ready to join through React                                                   |
+| Activity records          | Matching participation history and notification records                                   |
 
 Customer emails follow `<DEMO_PREFIX>-customer-<number>@example.test`. With the default prefix, sign in as:
 
@@ -316,12 +316,12 @@ The current npm coverage scripts enforce 75% line and function coverage for meas
 
 The four final work areas are documented in [docs/final-docs/README.md](docs/final-docs/README.md). Members choose their work areas and record their actual contributions there.
 
-| Work area | Starting points |
-| --- | --- |
-| Integration and persistence | Backend environment, startup wiring, demo scripts, and the real restart test |
-| Admin report screen and CSV export | Admin routes/navigation, `ReportsPage.jsx`, and `reportCsv.js` |
-| Required smart feature | `smartWait.js`, historical service data, and consistent `estimatedWait` values |
-| Reporting API and coverage | `reports.repo.js`, the admin report route, database tests, and final coverage evidence |
+| Work area                          | Starting points                                                                        |
+| ---------------------------------- | -------------------------------------------------------------------------------------- |
+| Integration and persistence        | Backend environment, startup wiring, demo scripts, and the real restart test           |
+| Admin report screen and CSV export | Admin routes/navigation, `ReportsPage.jsx`, and `reportCsv.js`                         |
+| Required smart feature             | `smartWait.js`, historical service data, and consistent `estimatedWait` values         |
+| Reporting API and coverage         | `reports.repo.js`, the admin report route, database tests, and final coverage evidence |
 
 Coordinate edits to shared files such as `backend/src/app.js`, `backend/src/server.js`, `backend/src/db/pool.js`, `frontend/src/api/`, and `.github/workflows/`. Preserve the API shapes documented in `docs/API.md`, including the `data` response wrapper and existing error codes.
 
@@ -331,14 +331,14 @@ Use feature branches based on the agreed `final` integration branch, review chan
 
 The final group submission is one Word or PDF file uploaded to Canvas. Include the repository link, fresh backend coverage evidence, actual contributions from all four members, and an example generated report with an explanation of its data, generation process, and access permissions. All four members participate in the team demo.
 
-| Document | Purpose |
-| --- | --- |
-| [docs/API.md](docs/API.md) | Frontend/backend API contract |
-| [docs/final-docs/README.md](docs/final-docs/README.md) | Final work-area division |
-| [docs/final-docs/demo-and-submission.md](docs/final-docs/demo-and-submission.md) | Final demo and submission checklist |
-| [docs/a4-docs/A4_DATABASE_DESIGN.md](docs/a4-docs/A4_DATABASE_DESIGN.md) | Database tables, keys, privileges, and TLS setup |
-| [docs/a4-docs/A4_INTEGRATION.md](docs/a4-docs/A4_INTEGRATION.md) | Earlier MySQL integration design |
-| [docs/a4-docs/A4_TEAM_PLAN.md](docs/a4-docs/A4_TEAM_PLAN.md) | Assignment 4 work packages |
-| [docs/a4-docs/A4_TEST_PLAN.md](docs/a4-docs/A4_TEST_PLAN.md) | Earlier test strategy |
-| [docs/a4-docs/A4_SUBMISSION_CHECKLIST.md](docs/a4-docs/A4_SUBMISSION_CHECKLIST.md) | Assignment 4 submission background |
-| [A4_CHANGES.md](A4_CHANGES.md) | Earlier scaffold change history |
+| Document                                                                           | Purpose                                          |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------ |
+| [docs/API.md](docs/API.md)                                                         | Frontend/backend API contract                    |
+| [docs/final-docs/README.md](docs/final-docs/README.md)                             | Final work-area division                         |
+| [docs/final-docs/demo-and-submission.md](docs/final-docs/demo-and-submission.md)   | Final demo and submission checklist              |
+| [docs/a4-docs/A4_DATABASE_DESIGN.md](docs/a4-docs/A4_DATABASE_DESIGN.md)           | Database tables, keys, privileges, and TLS setup |
+| [docs/a4-docs/A4_INTEGRATION.md](docs/a4-docs/A4_INTEGRATION.md)                   | Earlier MySQL integration design                 |
+| [docs/a4-docs/A4_TEAM_PLAN.md](docs/a4-docs/A4_TEAM_PLAN.md)                       | Assignment 4 work packages                       |
+| [docs/a4-docs/A4_TEST_PLAN.md](docs/a4-docs/A4_TEST_PLAN.md)                       | Earlier test strategy                            |
+| [docs/a4-docs/A4_SUBMISSION_CHECKLIST.md](docs/a4-docs/A4_SUBMISSION_CHECKLIST.md) | Assignment 4 submission background               |
+| [A4_CHANGES.md](A4_CHANGES.md)                                                     | Earlier scaffold change history                  |
