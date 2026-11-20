@@ -63,6 +63,9 @@ export async function listServices(connection = pool) {
     `${serviceSelect} ORDER BY s.id`,
   );
 
+  // TODO(SMART-3) Attach servedHistory for each service using listRecentServed
+  // from waitHistory.repo.js and the supplied connection. app.js already
+  // passes that array to estimateSmartWait for new arrivals.
   return rows.map(mapService);
 }
 

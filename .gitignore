@@ -12,6 +12,9 @@ coverage/
 .env.*
 !.env.example
 
+# Local capture used for the final assignment restart comparison
+backend/demo-persistence.snapshot.local.json
+
 # Local configuration
 *.local
 

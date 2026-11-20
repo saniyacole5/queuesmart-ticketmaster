@@ -39,18 +39,21 @@ const ACTIVE_ENTRY_SELECT = `
 
 // Service name and duration ride along on every row, so an empty queue needs
 // no second query -- it simply has nothing to decorate.
-function mapOrdered(rows) {
+function mapOrdered(rows, servedHistory = []) {
   if (rows.length === 0) return [];
 
   return decorateEntries(rows.map(queueEntryRow), {
     name: rows[0].service_name,
     expectedDuration: Number(rows[0].expected_duration),
+    servedHistory,
   });
 }
 
 export async function listActiveEntriesByService(serviceId, connection = pool) {
   const [rows] = await connection.execute(ACTIVE_ENTRY_SELECT, [serviceId]);
 
+  // TODO(SMART-3) Import listRecentServed from waitHistory.repo.js, await it
+  // with this same connection, then pass that array to mapOrdered.
   return mapOrdered(rows);
 }
 

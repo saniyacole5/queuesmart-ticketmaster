@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-11-17T18:00:00.000Z",
+  "customers": [
+    {
+      "id": 7,
+      "name": "Example Customer",
+      "email": "example-customer@example.test",
+      "participationCount": 2
+    }
+  ],
+  "participations": [
+    {
+      "entryId": 101,
+      "userId": 7,
+      "customerName": "Example Customer",
+      "serviceId": 1,
+      "serviceName": "Example Service",
+      "joinedAt": "2026-11-17T17:00:00.000Z",
+      "endedAt": "2026-11-17T17:06:00.000Z",
+      "outcome": "Served",
+      "waitMinutes": 6
+    },
+    {
+      "entryId": 102,
+      "userId": 7,
+      "customerName": "Example Customer",
+      "serviceId": 1,
+      "serviceName": "Example Service",
+      "joinedAt": "2026-11-17T17:50:00.000Z",
+      "endedAt": null,
+      "outcome": "Waiting",
+      "waitMinutes": null
+    }
+  ],
+  "services": [
+    {
+      "id": 1,
+      "name": "Example Service",
+      "description": "Synthetic contract example used by automated tests",
+      "isOpen": true,
+      "expectedDuration": 5,
+      "waitingCount": 1,
+      "participationCount": 2,
+      "servedVisits": 1,
+      "distinctCustomersServed": 1,
+      "averageWaitMinutes": 6
+    }
+  ],
+  "totals": {
+    "customerCount": 1,
+    "participationCount": 2,
+    "servedVisits": 1,
+    "distinctCustomersServed": 1,
+    "averageWaitMinutes": 6
+  }
+}

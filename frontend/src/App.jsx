@@ -12,6 +12,7 @@ import HistoryPage from "./pages/HistoryPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import ServiceManagementPage from "./pages/ServiceManagementPage";
 import QueueManagementPage from "./pages/QueueManagementPage";
+import ReportsPage from "./pages/ReportsPage";
 import { NotificationProvider } from "./context/NotificationContext";
 import { QueueProvider } from "./context/QueueContext";
 import "./App.css";
@@ -96,6 +97,7 @@ export default function App() {
                 element={<ServiceManagementPage />}
               />
               <Route path="/admin/queue" element={<QueueManagementPage />} />
+              <Route path="/admin/reports" element={<ReportsPage />} />
             </Route>
           </Route>
 

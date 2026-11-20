@@ -12,6 +12,7 @@ const adminLinks = [
   ["/admin", "Admin dashboard"],
   ["/admin/services", "Services"],
   ["/admin/queue", "Manage queue"],
+  ["/admin/reports", "Reports"],
 ];
 
 function RoleNavigation({ links }) {

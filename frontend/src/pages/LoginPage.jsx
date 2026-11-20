@@ -171,16 +171,6 @@ export default function LoginPage({ onLogin }) {
           </button>
         </form>
 
-        <aside className="demo-accounts" aria-labelledby="demo-accounts-title">
-          <h2 id="demo-accounts-title">Demo user account</h2>
-
-          <div className="demo-account">
-            <strong>User</strong>
-            <span>user@queuesmart.com</span>
-            <span>Password: User1234</span>
-          </div>
-        </aside>
-
         <p className="register-link">
           Need an account? <Link to="/register">Register</Link>
         </p>
