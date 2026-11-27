@@ -1,0 +1,238 @@
+
+> queuesmart-backend@0.1.0 coverage:db
+> node --env-file-if-exists=.env.test --test --experimental-test-coverage --test-coverage-include=src/**/*.js --test-coverage-exclude=src/server.js --test-coverage-lines=75 --test-coverage-functions=75
+
+▶ A4 activity: real MySQL persistence, transactions, concurrency and HTTP ownership
+  ✔ join stores Waiting history and joined/almost-ready notifications (114.112209ms)
+  ✔ history rejects mismatched ownership, service and missing entries (29.29675ms)
+  ✔ terminal outcomes persist and repeated completion preserves the original time (182.591542ms)
+  ✔ missing history and completion before joining are rejected (98.061583ms)
+  ✔ service name snapshots survive renaming and rejoining creates a new visit (100.642583ms)
+  ✔ only the first two positions get almost-ready and reordering does not duplicate it (151.10425ms)
+  ✔ concurrent duplicate events preserve one notification and its read state (81.057583ms)
+  ✔ notification timestamps stay UTC in a non-UTC database session (48.6145ms)
+  ✔ concurrent conflicting completions produce one final outcome (58.672958ms)
+  ✔ user scoping and read ownership prevent access to another user (80.304542ms)
+  ✔ database constraints reject orphan rows, duplicate events and long messages (71.054166ms)
+  ✔ failed notification work rolls back the queue join and history (39.856333ms)
+  ✔ failed notification work rolls back queue completion and history (65.024375ms)
+  ✔ committed history and read state survive a fresh Node process (164.938125ms)
+  ✔ SQL-backed HTTP history and read status survive an Express restart (294.272208ms)
+✔ A4 activity: real MySQL persistence, transactions, concurrency and HTTP ownership (2043.869125ms)
+▶ A4: SQL queue and activity integration
+  ✔ queue HTTP actions persist activity across restart and rejoin (599.844875ms)
+  ✔ missing activity history rolls back queue completion (56.028125ms)
+✔ A4: SQL queue and activity integration (889.871125ms)
+✔ SQL activity adapters preserve the contract and caller transaction (1.566709ms)
+✔ queue activity refuses a missing connection or a pool and propagates failures (2.64525ms)
+✔ activity repository rejects malformed fields before SQL and preserves database errors (0.84975ms)
+✔ activity storage rejects incompatible configuration (0.570542ms)
+✔ SQL activity HTTP routes await repositories and enforce identity, roles and body validation (88.8275ms)
+▶ Member 1: real MySQL authentication, sessions and HTTP persistence
+  ✔ credentials + profile, canonical email, no plaintext secret (157.254041ms)
+  ✔ two simultaneous registrations race safely on UNIQUE(email) (56.150333ms)
+  ✔ failed profile insert rolls back credential insert (57.165208ms)
+  ✔ hashed session survives auth instance restart and expires exactly (243.856125ms)
+  ✔ SQL-auth HTTP register/login/me/logout survives new Express instance (166.353084ms)
+  ✔ administrator login requires DB-assigned role; public register cannot self-elevate (89.892792ms)
+✔ Member 1: real MySQL authentication, sessions and HTTP persistence (922.65925ms)
+✔ SQL auth: registration is a user and never reveals stored credentials (100.678833ms)
+✔ SQL auth: role checks, wrong password, token hash, restart simulation and logout (258.429833ms)
+✔ SQL auth: invalid input does not call repository (0.288459ms)
+✔ QUEUE_STORAGE configuration is validated (0.903667ms)
+▶ A4 queue API integration with injected repositories
+  ✔ health reports SQL queue storage (42.705167ms)
+  ✔ queue routes are no longer blocked by the service-testing gate (25.525917ms)
+  ✔ queue reads come from the repository (2.05825ms)
+  ✔ admin-only queue actions still enforce roles (2.0835ms)
+  ✔ state serves SQL queue data and leaves history to Member 4 (3.375625ms)
+  ✔ an invalid queue body is rejected before reaching the repository (3.604084ms)
+✔ A4 queue API integration with injected repositories (97.835958ms)
+▶ A4 queues: real MySQL lifecycle operations
+  ✔ empty queue reads as an empty list (46.184042ms)
+  ✔ a user with no entry reads as null (17.777417ms)
+  ✔ joining stores a waiting row, history snapshot and notification (80.7555ms)
+  ✔ two simultaneous joins by one user yield exactly one waiting row (46.930208ms)
+  ✔ three users queue in arrival order (86.553667ms)
+  ✔ joining a closed service is refused (21.809292ms)
+  ✔ joining a service that does not exist returns 404 (10.812792ms)
+  ✔ renaming a service keeps the history snapshot but updates the live view (49.258916ms)
+  ✔ queue order survives a backend restart (133.437958ms)
+  ✔ leaving soft-finishes the row and frees the user to rejoin (102.468167ms)
+  ✔ a user cannot leave another user's entry (116.219958ms)
+  ✔ serve finishes the first ordered entry and promotes the rest (124.462042ms)
+  ✔ admin remove works on any entry (68.812666ms)
+  ✔ a non-admin cannot remove another user's entry (87.916667ms)
+  ✔ concurrent serve and leave finish the entry exactly once (78.806042ms)
+  ✔ finishing an already-terminal entry returns 404 and adds nothing (79.888333ms)
+  ✔ serving an empty queue returns 409 (73.655292ms)
+  ✔ serving a closed queue is refused (42.924583ms)
+  ✔ raising priority moves an entry above the standard tier (111.263333ms)
+  ✔ move swaps order within a tier (114.654ms)
+  ✔ move past an edge is refused (55.561583ms)
+  ✔ move across a priority tier is refused (91.311208ms)
+  ✔ reordering back into the top two does not duplicate almost-ready (128.779583ms)
+  ✔ timestamps are UTC, so elapsed wait time is real (47.773584ms)
+  ✔ adjusting a finished entry returns 404 (40.430625ms)
+✔ A4 queues: real MySQL lifecycle operations (1960.923209ms)
+✔ decorateEntries numbers positions from 1 and derives wait from duration (1.178125ms)
+✔ findMoveNeighbour refuses edges and cross-tier moves (0.095333ms)
+✔ SQL mode delegates join and preserves validation (0.599958ms)
+✔ SQL mode maps each action to its repository call (0.190583ms)
+✔ mine returns null when the user has no active entry (0.075292ms)
+✔ memory mode is unchanged when no repository is supplied (0.075333ms)
+✔ A4 schema uses queuesmart_db and declares all eight required/extension tables (2.611ms)
+✔ A4 schema defines primary/foreign keys and active user uniqueness (0.162834ms)
+✔ mapper produces public user without credential materials (0.49675ms)
+✔ mapper converts service columns to API shape (0.077791ms)
+✔ mapper preserves history and notification timestamps and user scope (1.106416ms)
+▶ A4 services API integration with injected repositories
+  ✔ health reports partial SQL integration (31.08925ms)
+  ✔ service reads require authentication (2.532791ms)
+  ✔ list and state await repository data and use SQL counts (2.720584ms)
+  ✔ regular users cannot create or update services (10.102042ms)
+  ✔ admin creation and partial update return resolved data (2.504125ms)
+  ✔ invalid input never reaches repository writes (4.324667ms)
+  ✔ repository conflicts and missing IDs reach the client (1.832ms)
+  ✔ duration edits refresh estimated wait (1.268792ms)
+  ✔ unfinished features are blocked in service-testing mode (1.910417ms)
+  ✔ authentication routes remain accessible and logout revokes access (1.91075ms)
+✔ A4 services API integration with injected repositories (71.173417ms)
+▶ A4 services: real MySQL repository operations
+  ✔ create stores a service and linked queue (21.269042ms)
+  ✔ closed creation stores matching queue status (5.926333ms)
+  ✔ duplicate names ignore case and surrounding spaces (6.827708ms)
+  ✔ partial updates preserve unspecified fields (12.59025ms)
+  ✔ opening and closing keep both tables synchronized (27.03775ms)
+  ✔ conflicting rename preserves the existing service (28.402667ms)
+  ✔ keeping a service's own name is allowed (7.951416ms)
+  ✔ missing service IDs return 404 (2.654959ms)
+✔ A4 services: real MySQL repository operations (190.313834ms)
+✔ SQL service module: list returns repository results (0.953ms)
+✔ SQL service module: create validates and trims fields (0.5435ms)
+✔ SQL service module: invalid creation never reaches repository (0.433292ms)
+✔ SQL service module: partial update sends only supplied fields (0.422125ms)
+✔ SQL service module: invalid updates never reach repository writes (0.610542ms)
+✔ SQL service module: missing service prevents update (0.144833ms)
+✔ SQL service module: duplicate-name error reaches caller (0.125042ms)
+✔ HTTP contracts and end-to-end A3 workflow (313.186542ms)
+✔ two simultaneous registrations for one email yield a single account (152.039916ms)
+✔ a rejected registration does not block a later attempt at the same email (144.76425ms)
+✔ password length is rejected at 7 and 129, accepted at 8 and 128 (254.117959ms)
+✔ a whitespace-only name is rejected and the stored name is trimmed (142.082375ms)
+✔ email canonicalisation makes case and surrounding space a duplicate (177.516917ms)
+✔ a session is valid up to its final millisecond and rejected exactly at expiry (106.100333ms)
+✔ logout revokes only its own token and is safe to repeat (140.56875ms)
+✔ expectedRole must match the stored role (239.764458ms)
+✔ registration payloads cannot set role, id or any other unknown field (95.051125ms)
+✔ no auth response or thrown error exposes credential material (151.777584ms)
+✔ HTTP responses never carry credential material and preserve auth status codes (193.760791ms)
+✔ auth: registration, canonical emails, hashed passwords, safe role and duplicate conflict (130.443916ms)
+✔ auth: credentials, role matching, expiring and revoked sessions (264.067417ms)
+✔ services: create/update/list and validation cannot partially mutate existing service (1.468917ms)
+✔ wait: zero at first position, linear estimate, rejects invalid inputs (0.113542ms)
+✔ priority ordering preserves arrival ties, does not mutate input (0.107791ms)
+✔ join/leave: identity, one active queue, closed queue, ownership, history, rejoin (0.73925ms)
+✔ serve: FIFO within priority tier, status and wait update, isolated services (0.297416ms)
+✔ manual reorder only within tier and service; removals record outcome (0.256833ms)
+✔ notifications: close threshold on transitions, deduplication, read ownership and rejoin (0.203083ms)
+✔ CSV cells preserve quotes, commas, newlines, zero and empty values (0.568792ms)
+✔ CSV-1: CSV includes the same customer, participation, service and total values as its report snapshot (0.053708ms) # TODO
+✔ final persistence survives a real backend process restart (970.086542ms)
+✔ final reports enforce authentication and administrator access (45.98325ms)
+✔ report repository returns empty data and rolls back on failure (0.81825ms)
+✔ MySQL report: empty data, unused records, and served statistics (122.056125ms)
+✔ smart wait scaffold preserves the configured-duration fallback (1.826917ms)
+✔ SMART-1/2: a three-minute median with two people ahead yields six minutes (0.061958ms) # TODO
+✔ SMART-1: ignore idle gaps, non-positive intervals, and invalid timestamps (0.041291ms) # TODO
+✔ SMART-2: fewer than three usable intervals uses configured duration (0.037ms) # TODO
+✔ SMART-3: service lists and current queue use the same estimate from real MySQL history (0.032125ms) # TODO
+✔ test/helpers/queue-fixtures.js (42.168209ms)
+✔ HTTP: notifications and history enforce authentication and roles (283.777583ms)
+✔ HTTP: users see only their records and can mark only their notifications read (245.714166ms)
+✔ HTTP: notification read validates IDs and request bodies without changing records (246.697958ms)
+✔ HTTP: history preserves service snapshots and records rejoining as a new visit (201.815833ms)
+✔ history: joining records the initial participation details (1.135416ms)
+✔ history: lists only the requested user's records, newest first (0.114542ms)
+✔ history: preserves the original service name and join time (0.140625ms)
+✔ history: records Served with a completion timestamp (0.063ms)
+✔ history: records Left Queue with a completion timestamp (0.038ms)
+✔ history: records Removed with a completion timestamp (0.033625ms)
+✔ history: rejects invalid outcomes without changing the record (1.1615ms)
+✔ history: rejects duplicate participation records (0.452ms)
+✔ history: missing participation returns a controlled error (0.138833ms)
+✔ history: repeating completion preserves the original end time (0.077083ms)
+✔ history: a final outcome cannot be replaced by another outcome (0.077083ms)
+✔ history: returned objects cannot change stored participation (0.827167ms)
+✔ notifications: repeated events preserve the original notification (2.44175ms)
+✔ notifications: positions 1 and 2 are close, position 3 is not (0.3505ms)
+✔ notifications: serving advances position 3 and triggers almost-ready (0.144792ms)
+✔ notifications: repeated moves and priority changes do not duplicate close events (0.209125ms)
+✔ notifications/history: rejoining creates distinct visits and lifecycle events (0.179458ms)
+✔ notifications: read changes require ownership and can be repeated (0.126583ms)
+✔ notifications: lists are isolated, newest first, and protect stored records (0.092667ms)
+✔ simultaneous joins into 1/1 allow one active participation (435.117916ms)
+✔ simultaneous joins into 1/2 allow one active participation (359.97725ms)
+✔ FIFO, priority, manual overrides, positions, waits and service isolation (326.77125ms)
+✔ identity, priority and ownership are enforced by HTTP authorization (307.361208ms)
+✔ closing preserves waiting entries, blocks join/serve and permits admin management and leave (287.061417ms)
+✔ unknown entries and services return 404 without changing queues (285.06575ms)
+✔ services: duplicate creation ignores case and surrounding spaces (1.520417ms)
+✔ services: conflicting rename leaves all fields unchanged (0.190792ms)
+✔ services: keeping its own name is allowed and preserves closed state (0.093042ms)
+✔ services: name and description length boundaries (0.231666ms)
+✔ services: duration accepts boundaries and rejects invalid types or values (0.147875ms)
+✔ services: isOpen requires a boolean and defaults to true (0.865167ms)
+✔ services: priority accepts only low, medium, or high (0.198708ms)
+✔ services: invalid updates never partially change a service (0.192125ms)
+✔ wait: positions 1, 2, and 5 use the expected duration (0.068ms)
+✔ wait: invalid positions and durations are rejected (0.073459ms)
+✔ service edits refresh waits without changing queue order or history (2.870125ms)
+✔ object validation rejects null, arrays, scalars and unknown keys (5.479042ms)
+✔ strings enforce type, required values, length and optional trimming (0.166083ms)
+✔ email syntax and canonicalization (0.181166ms)
+✔ numeric types, whole numbers, bounded duration (0.107292ms)
+✔ enum, boolean and path ID rules (0.182667ms)
+ℹ tests 184
+ℹ suites 0
+ℹ pass 179
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 5
+ℹ duration_ms 3350.132792
+ℹ start of coverage report
+ℹ ------------------------------------------------------------------------------
+ℹ file               | line % | branch % | funcs % | uncovered lines
+ℹ ------------------------------------------------------------------------------
+ℹ src                |        |          |         | 
+ℹ  app.js            |  97.99 |    95.19 |  100.00 | 32-33 36-37 48-49 331-332
+ℹ  db                |        |          |         | 
+ℹ   mappers.js       | 100.00 |    64.29 |  100.00 | 
+ℹ   pool.js          | 100.00 |    25.00 |  100.00 | 
+ℹ   transaction.js   | 100.00 |    66.67 |  100.00 | 
+ℹ  modules           |        |          |         | 
+ℹ   activitySql.js   | 100.00 |   100.00 |  100.00 | 
+ℹ   auth.js          | 100.00 |   100.00 |  100.00 | 
+ℹ   authSql.js       | 100.00 |    94.12 |  100.00 | 
+ℹ   history.js       | 100.00 |   100.00 |  100.00 | 
+ℹ   notifications.js | 100.00 |   100.00 |  100.00 | 
+ℹ   queues.js        | 100.00 |   100.00 |  100.00 | 
+ℹ   queueView.js     | 100.00 |    92.86 |  100.00 | 
+ℹ   services.js      | 100.00 |   100.00 |  100.00 | 
+ℹ   smartWait.js     | 100.00 |   100.00 |  100.00 | 
+ℹ   waitTime.js      | 100.00 |   100.00 |  100.00 | 
+ℹ  repositories      |        |          |         | 
+ℹ   activity.repo.js | 100.00 |   100.00 |  100.00 | 
+ℹ   queues.repo.js   |  98.00 |    91.38 |  100.00 | 23 250-251 262-263 312-313
+ℹ   reports.repo.js  | 100.00 |   100.00 |  100.00 | 
+ℹ   services.repo.js |  98.80 |    90.63 |  100.00 | 114-115
+ℹ   users.repo.js    | 100.00 |    80.00 |  100.00 | 
+ℹ  shared            |        |          |         | 
+ℹ   errors.js        | 100.00 |    95.00 |  100.00 | 
+ℹ   validation.js    | 100.00 |    97.67 |  100.00 | 
+ℹ  store.js          | 100.00 |   100.00 |  100.00 | 
+ℹ ------------------------------------------------------------------------------
+ℹ all files          |  99.31 |    94.28 |  100.00 | 
+ℹ ------------------------------------------------------------------------------
+ℹ end of coverage report
